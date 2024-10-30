@@ -30,8 +30,7 @@ void handleRegisterIPSECSAPacket(int fd, PacketBase &pkt1)
                   << " is_inbound: " << is_inbound
                   << std::endl;
     }
-    globalSAManager.registerSA(sourceip, desip, spi, is_inbound);
-
+    globalSAManager.registerIPSecSA(sourceip, desip, spi, is_inbound);
 }
 
 // 处理IPSECSA获取密钥
@@ -56,7 +55,7 @@ void handleIPSECSAKeyRequestPacket(int fd, PacketBase &pkt1)
                   << " request_len: " << request_len
                   << std::endl;
     }
-    std::string getkeyvalue = globalSAManager.getKey(spi, seq, request_len);
+    std::string getkeyvalue = globalSAManager.getIPSecKey(spi, seq, request_len);
     // 返回密钥
     IPSECSAKeyRequestPacket pkt3;
     pkt3.ConstructIPSECSAkeyReturnPacket(spi, seq, request_len, getkeyvalue);
@@ -86,7 +85,89 @@ void handleDestroyIPSECSAPacket(int fd, PacketBase &pkt1)
                   << " is_inbound: " << is_inbound
                   << std::endl;
     }
-    globalSAManager.destorySA(spi);
+    globalSAManager.destoryIPSecSA(spi);
+    close(fd);
+}
+
+void handleRegisterIKESAPacket(int fd, PacketBase &pkt1)
+{
+    uint16_t length;
+    std::memcpy(&length, pkt1.getBufferPtr() + sizeof(uint16_t), sizeof(uint16_t));
+    // 读取payload
+    read(fd, pkt1.getBufferPtr() + BASE_HEADER_SIZE, length); // read需要处理，while循环读入
+    pkt1.setBufferSize(BASE_HEADER_SIZE + length);
+
+    // 带参构造RegisterIKESAPacket
+    RegisterIKESAPacket pkt2(std::move(pkt1));
+    uint32_t sourceip = *pkt2.getsourcePtr();
+    uint32_t desip = *pkt2.getdesPtr();
+    uint64_t spiI = *pkt2.getspiIPtr();
+    uint64_t spiR = *pkt2.getspiRPtr();
+    if (DEBUG_LEVEL == 1)
+    {
+        std::cout << "Received RegisterIKESA packet: "
+                  << " source_ip: " << uint32ToIpString(sourceip)
+                  << " dest_ip: " << uint32ToIpString(desip)
+                  << " spiI: " << spiI
+                  << " spiR: " << spiR
+                  << std::endl;
+    }
+    globalSAManager.registerIKESA(sourceip, desip, spiI, spiR);
+}
+
+void handleIKESAKeyRequestPacket(int fd, PacketBase &pkt1)
+{
+    uint16_t length;
+    std::memcpy(&length, pkt1.getBufferPtr() + sizeof(uint16_t), sizeof(uint16_t));
+    // 读取payload
+    read(fd, pkt1.getBufferPtr() + BASE_HEADER_SIZE, length);
+    pkt1.setBufferSize(BASE_HEADER_SIZE + length);
+
+    // 带参构造KeyRequestPacket
+    IKESAKeyRequestPacket pkt2(std::move(pkt1));
+    uint64_t spiI = *pkt2.getspiIPtr();
+    uint64_t spiR = *pkt2.getspiRPtr();
+    uint32_t seq = *pkt2.getseqPtr();
+    uint16_t request_len = *pkt2.getreqlenPtr();
+    if (DEBUG_LEVEL == 1)
+    {
+        std::cout << "Received IKECSAKEYREQUEST packet: "
+                  << " spiI: " << spiI
+                  << " spiR: " << spiR
+                  << " seq: " << seq
+                  << " request_len: " << request_len
+                  << std::endl;
+    }
+    std::string getkeyvalue = globalSAManager.getIKESAKey(spiI, spiR, seq, request_len);
+    // 返回密钥
+    IKESAKeyRequestPacket pkt3;
+    pkt3.ConstructIKESAkeyReturnPacket(spiI, spiR, seq, request_len, getkeyvalue);
+    send(fd, pkt3.getBufferPtr(), pkt3.getBufferSize(), 0);
+}
+
+void handleDestroyIKESAPacket(int fd, PacketBase &pkt1)
+{
+    uint16_t length;
+    std::memcpy(&length, pkt1.getBufferPtr() + sizeof(uint16_t), sizeof(uint16_t));
+    // 读取payload
+    read(fd, pkt1.getBufferPtr() + BASE_HEADER_SIZE, length);
+    pkt1.setBufferSize(BASE_HEADER_SIZE + length);
+    // 带参构造DestoryPacket
+    RegisterIKESAPacket pkt2(std::move(pkt1));
+    uint32_t sourceip = *pkt2.getsourcePtr();
+    uint32_t desip = *pkt2.getdesPtr();
+    uint64_t spiI = *pkt2.getspiIPtr();
+    uint64_t spiR = *pkt2.getspiRPtr();
+    if (DEBUG_LEVEL == 1)
+    {
+        std::cout << "Received DestoryIKESA packet: "
+                  << " source_ip: " << uint32ToIpString(sourceip)
+                  << " dest_ip: " << uint32ToIpString(desip)
+                  << " spiI: " << spiI
+                  << " spiR: " << spiR
+                  << std::endl;
+    }
+    globalSAManager.destoryIKESA(spiI, spiR);
     close(fd);
 }
 
@@ -111,17 +192,20 @@ void handleUnknownPacket(int fd, PacketBase &pkt)
 // 模拟从消息中解析出类型
 PacketType parsePacketType(uint16_t type)
 {
-    if (type == static_cast<uint16_t>(PacketType::REGISTERIKESA))
-        return PacketType::REGISTERIKESA;
-    if (type == static_cast<uint16_t>(PacketType::GETKEYIKESA))
-        return PacketType::GETKEYIKESA;
-    if (type == static_cast<uint16_t>(PacketType::DESTORYIKESA))
-        return PacketType::DESTORYIKESA;
-    if (type == static_cast<uint16_t>(PacketType::REGISTERIPSECSA))
-        return PacketType::REGISTERIPSECSA;
-    if (type == static_cast<uint16_t>(PacketType::GETKEYIPSECSA))
-        return PacketType::GETKEYIPSECSA;
-    if (type == static_cast<uint16_t>(PacketType::DESTORYIPSECSA))
-        return PacketType::DESTORYIPSECSA;
-    return PacketType::MSG_TYPE_UNKNOWN;
+    switch (type) {
+        case static_cast<uint16_t>(PacketType::REGISTERIKESA):
+            return PacketType::REGISTERIKESA;
+        case static_cast<uint16_t>(PacketType::GETKEYIKESA):
+            return PacketType::GETKEYIKESA;
+        case static_cast<uint16_t>(PacketType::DESTORYIKESA):
+            return PacketType::DESTORYIKESA;
+        case static_cast<uint16_t>(PacketType::REGISTERIPSECSA):
+            return PacketType::REGISTERIPSECSA;
+        case static_cast<uint16_t>(PacketType::GETKEYIPSECSA):
+            return PacketType::GETKEYIPSECSA;
+        case static_cast<uint16_t>(PacketType::DESTORYIPSECSA):
+            return PacketType::DESTORYIPSECSA;
+        default:
+            return PacketType::MSG_TYPE_UNKNOWN;
+    }
 }

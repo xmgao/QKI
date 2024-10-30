@@ -46,6 +46,15 @@ void handleIPSECSAKeyRequestPacket(int fd, PacketBase &pkt1);
 // 处理销毁IPSECSA
 void handleDestroyIPSECSAPacket(int fd, PacketBase &pkt1);
 
+// 处理注册IKESA
+void handleRegisterIKESAPacket(int fd, PacketBase &pkt1);
+
+// 处理IKESA密钥请求
+void handleIKESAKeyRequestPacket(int fd, PacketBase &pkt1);
+
+// 处理销毁IKESA
+void handleDestroyIKESAPacket(int fd, PacketBase &pkt1);
+
 // 处理UNKOWN_TYPE
 void handleUnknownPacket(int fd, PacketBase &pkt);
 // 模拟从消息中解析出类型

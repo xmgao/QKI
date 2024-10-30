@@ -11,23 +11,21 @@ SAManager globalSAManager;
 // 创建并注册消息处理器
 MessageHandlerRegistry global_registry;
 
+uint32_t LOCAL_QKI_IPADDRESS = 0;
+uint32_t REMOTE_QKI_IPADDRESS = 0;
+
 int main(int argc, char *argv[])
 {
     if (argc != 3)
     {
-        std::cerr << "Usage: " << argv[0] << " <remote_qki IP address> <remote_qki_port>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <local_qki IP address> <remote_qki IP address>" << std::endl;
         return 1;
     }
 
-    std::string remote_qki_ipAddress = argv[1];
-    int remote_qki_port = std::atoi(argv[2]);
-
-    // 端口号范围验证
-    if (remote_qki_port <= 0 || remote_qki_port > 65535)
-    {
-        std::cerr << "Invalid remote_qki_port number. Must be between 1 and 65535." << std::endl;
-        return 1;
-    }
+    std::string local_qki_ipAddress = argv[1];
+    std::string remote_qki_ipAddress = argv[2];
+    LOCAL_QKI_IPADDRESS = IpStringTouint32(local_qki_ipAddress);
+    REMOTE_QKI_IPADDRESS = IpStringTouint32(remote_qki_ipAddress);
 
     std::cout << "begin register!" << std::endl;
     global_registry.registerHandler(PacketType::REGISTERIPSECSA, handleRegisterIPSECSAPacket);
