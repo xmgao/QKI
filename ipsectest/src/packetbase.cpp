@@ -1,4 +1,4 @@
-#include "packet/packetbase.hpp"
+#include "packetbase.hpp"
 
 PacketBase::PacketBase()
     : buffer_size_(BASE_HEADER_SIZE)

@@ -13,8 +13,6 @@
 #include <sys/socket.h>
 #include <unistd.h> // for close()
 
-const int PORT_KM = 50000;
-const int LISTEN_PORT_IPSec = 50001;
 
 class Server
 {

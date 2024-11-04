@@ -7,7 +7,8 @@
 // 声明全局变量，但不定义
 extern SAManager globalSAManager;
 extern uint32_t LOCAL_QKI_IPADDRESS;
-const int KM_LISTEN_PORT = 50000;
+extern uint32_t REMOTE_QKI_IPADDRESS;
+extern int KM_LISTEN_PORT;
 
 SAManager::SAManager()
     : IPSecSA_number(0) {}
@@ -124,7 +125,7 @@ bool opensession(IPSec_SAData &sadata)
 {
     // 打开会话
     OpenSessionPacket pkt1;
-    pkt1.constructopensessionpacket(sadata.sourceip_, sadata.desip_, sadata.spi_, sadata.is_inbound_);
+    pkt1.constructopensessionpacket(LOCAL_QKI_IPADDRESS, REMOTE_QKI_IPADDRESS, sadata.session_id_, sadata.is_inbound_);
     send(sadata.KM_fd_, pkt1.getBufferPtr(), pkt1.getBufferSize(), 0);
     if (!reciveconfirmmessage(sadata.KM_fd_))
     {
@@ -139,7 +140,7 @@ bool opensession(IKE_SAData &sadata)
 {
     // 打开会话
     OpenSessionPacket pkt1;
-    pkt1.constructopensessionpacket(sadata.sourceip_, sadata.desip_, sadata.session_id_, !sadata.is_initiator);
+    pkt1.constructopensessionpacket(LOCAL_QKI_IPADDRESS, REMOTE_QKI_IPADDRESS, sadata.session_id_, !sadata.is_initiator);
     send(sadata.KM_fd_, pkt1.getBufferPtr(), pkt1.getBufferSize(), 0);
     if (!reciveconfirmmessage(sadata.KM_fd_))
     {
@@ -155,7 +156,7 @@ bool addKey(IPSec_SAData &sadata)
     int request_len = 512;
     // 构造请求密钥包
     KeyRequestPacket pkt2;
-    pkt2.constructkeyrequestpacket(sadata.spi_, sadata.request_id, request_len);
+    pkt2.constructkeyrequestpacket(sadata.session_id_, sadata.request_id, request_len);
     if (send(sadata.KM_fd_, pkt2.getBufferPtr(), pkt2.getBufferSize(), 0) == -1)
     {
         perror("send Error");
@@ -265,7 +266,7 @@ void closesession(IPSec_SAData &sadata)
 {
     // 关闭会话
     OpenSessionPacket closepkt;
-    closepkt.constructclosesessionpacket(sadata.sourceip_, sadata.desip_, sadata.spi_, sadata.is_inbound_);
+    closepkt.constructclosesessionpacket(sadata.sourceip_, sadata.desip_, sadata.session_id_, sadata.is_inbound_);
     send(sadata.KM_fd_, closepkt.getBufferPtr(), closepkt.getBufferSize(), 0);
     close(sadata.KM_fd_);
 }
@@ -283,8 +284,8 @@ bool SAManager::registerIPSecSA(uint32_t sourceip, uint32_t desip, uint32_t spi,
 {
     std::lock_guard<std::mutex> lock(mutex_);
     // 检查SA是否已存在
-    auto it = IPSecSACache_.find(spi);
-    if (it != IPSecSACache_.end())
+    auto it = IPSec_SACache_.find(spi);
+    if (it != IPSec_SACache_.end())
     {
         std::cerr << "SA already exists" << std::endl;
         return false; // 会话已存在
@@ -295,6 +296,7 @@ bool SAManager::registerIPSecSA(uint32_t sourceip, uint32_t desip, uint32_t spi,
     newSAData.desip_ = desip;
     newSAData.spi_ = spi;
     newSAData.is_inbound_ = is_inbound;
+    newSAData.session_id_ = globalSAManager.mapIPSecSpiToSessionId(spi); //调用成员函数
     if (!connect_KM(newSAData))
     {
         std::cerr << "connect km error" << std::endl;
@@ -310,15 +312,15 @@ bool SAManager::registerIPSecSA(uint32_t sourceip, uint32_t desip, uint32_t spi,
             return false;
         }
     }
-    IPSecSACache_[spi] = newSAData;
+    IPSec_SACache_[spi] = newSAData;
     ++IPSecSA_number;
     return true;
 }
 
 std::string SAManager::getIPSecKey(uint32_t spi, uint32_t seq, uint16_t request_len)
 {
-    auto it = IPSecSACache_.find(spi);
-    if (it != IPSecSACache_.end())
+    auto it = IPSec_SACache_.find(spi);
+    if (it != IPSec_SACache_.end())
     {
         // 返回找到的密钥
         int useful_size = it->second.keybuffer.size() - it->second.index_;
@@ -343,11 +345,11 @@ std::string SAManager::getIPSecKey(uint32_t spi, uint32_t seq, uint16_t request_
 bool SAManager::destoryIPSecSA(uint32_t spi)
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    auto it = IPSecSACache_.find(spi);
-    if (it != IPSecSACache_.end())
+    auto it = IPSec_SACache_.find(spi);
+    if (it != IPSec_SACache_.end())
     {
         closesession(it->second); // TODO:首先通知关闭与KM的会话
-        IPSecSACache_.erase(it);
+        IPSec_SACache_.erase(it);
         --IPSecSA_number;
         std::cout << "destoryIPSecSA success!spi:" << spi << std::endl;
         return true;
@@ -363,12 +365,10 @@ bool SAManager::destoryIPSecSA(uint32_t spi)
 bool SAManager::registerIKESA(uint32_t sourceip, uint32_t desip, uint64_t spiI, uint64_t spiR)
 {
 
-    IKE_SPI Spitemple;
-    Spitemple.spi_i = spiI;
-    Spitemple.spi_r = spiR;
+    IKE_SPI Spitemple = {spiI, spiR};
 
     // 检查IKESA是否已存在
-    if (IKE_SACache.find(Spitemple) != IKE_SACache.end())
+    if (IKE_SACache_.find(Spitemple) != IKE_SACache_.end())
     {
         std::cout << "Found IKE SA!" << std::endl;
         return false;
@@ -381,7 +381,7 @@ bool SAManager::registerIKESA(uint32_t sourceip, uint32_t desip, uint64_t spiI, 
     newSAData.spiR_ = spiR;
     // 如果发起方地址就是本地QKI地址，则本身为发起方，发起方作为主动端
     newSAData.is_initiator = (sourceip == LOCAL_QKI_IPADDRESS ? true : false);
-    newSAData.session_id_ = globalSAManager.mapSpiToSessionId(Spitemple); // 使用this指针调用成员函数
+    newSAData.session_id_ = globalSAManager.mapIKESpiToSessionId(Spitemple); // 调用成员函数
     if (!connect_KM(newSAData))
     {
         std::cerr << "connect km error" << std::endl;
@@ -397,17 +397,15 @@ bool SAManager::registerIKESA(uint32_t sourceip, uint32_t desip, uint64_t spiI, 
             return false;
         }
     }
-    IKE_SACache[Spitemple] = newSAData;
+    IKE_SACache_[Spitemple] = newSAData;
     return true;
 }
 
 std::string SAManager::getIKESAKey(uint64_t spiI, uint64_t spiR, uint32_t seq, uint16_t request_len)
 {
-    IKE_SPI Spitemple;
-    Spitemple.spi_i = spiI;
-    Spitemple.spi_r = spiR;
-    auto it = IKE_SACache.find(Spitemple);
-    if (it != IKE_SACache.end())
+    IKE_SPI Spitemple = {spiI, spiR};
+    auto it = IKE_SACache_.find(Spitemple);
+    if (it != IKE_SACache_.end())
     {
         // 返回找到的密钥
         int useful_size = it->second.keybuffer.size() - it->second.index_;
@@ -431,14 +429,12 @@ std::string SAManager::getIKESAKey(uint64_t spiI, uint64_t spiR, uint32_t seq, u
 
 bool SAManager::destoryIKESA(uint64_t spiI, uint64_t spiR)
 {
-    IKE_SPI Spitemple;
-    Spitemple.spi_i = spiI;
-    Spitemple.spi_r = spiR;
-    auto it = IKE_SACache.find(Spitemple);
-    if (it != IKE_SACache.end())
+   IKE_SPI Spitemple = {spiI, spiR};
+    auto it = IKE_SACache_.find(Spitemple);
+    if (it != IKE_SACache_.end())
     {
         closesession(it->second); // TODO:首先通知关闭与KM的会话
-        IKE_SACache.erase(it);
+        IKE_SACache_.erase(it);
         std::cout << "destoryIKESA success!spi:" << spiI << " and " << spiR << std::endl;
         return true;
     }

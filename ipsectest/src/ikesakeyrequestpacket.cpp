@@ -1,4 +1,4 @@
-#include "packet/ikesakeyrequestpacket.hpp"
+#include "ikesakeyrequestpacket.hpp"
 
 IKESAKeyRequestPacket::IKESAKeyRequestPacket()
     : keyreq_spiI_ptr_(reinterpret_cast<uint64_t *>(buffer_ + BASE_HEADER_SIZE)),
@@ -67,7 +67,7 @@ void IKESAKeyRequestPacket::ConstructIKESAkeyReturnPacket(uint64_t spi_i, uint64
 {
     uint16_t intvalue = static_cast<uint16_t>(PacketType::GETKEYRETURNIKESA);
     std::memcpy(this->getBufferPtr(), &intvalue, sizeof(uint16_t));
-    uint16_t length = IKESAKEYREQUEST_HEADER_SIZE + getkeyvalue.length();
+    uint16_t length = IKESAKEYREQUEST_HEADER_SIZE;
     std::memcpy(this->getBufferPtr() + sizeof(uint16_t), &length, sizeof(uint16_t));
     this->setBufferSize(BASE_HEADER_SIZE + length);
     *this->keyreq_spiI_ptr_ = spi_i;

@@ -36,51 +36,66 @@ struct IKE_SPI_Hash
 // 示例的 SA 数据结构
 struct IKE_SAData
 {
-    std::vector<uint8_t> keybuffer; // 原始密钥缓存
     uint64_t spiI_;
     uint64_t spiR_;
     uint32_t sourceip_;
     uint32_t desip_;
+    // 如果是发起方true
+    bool is_initiator;
     // IKESA对应的会话ID
     uint32_t session_id_;
     int index_ = 0;
     int KM_fd_ = -1;
     int request_id = 1;
-    // 如果是发起方true
-    bool is_initiator;
+    std::vector<uint8_t> keybuffer; // 原始密钥缓存
 };
 
 struct IPSec_SAData
 {
-    std::vector<uint8_t> keybuffer; // 原始密钥缓存
-    std::vector<uint8_t> keyderive; // 密钥派生缓存
     uint32_t spi_;
     uint32_t sourceip_;
     uint32_t desip_;
+    // 标识是入站SA还是出站SA,true如果是入站SA
+    bool is_inbound_;
+    // IPSecSA对应的会话ID
+    uint32_t session_id_;
     int index_ = 0;
     int KM_fd_ = -1;
     int request_id = 1;
-    // 标识是入站SA还是出站SA,true如果是入站SA
-    bool is_inbound_;
-    // 新增成员：用于存储使用过的seq的队列
-    std::queue<int> usedSeq;
+    std::vector<uint8_t> keybuffer; // 原始密钥缓存
+    std::vector<uint8_t> keyderive; // 密钥派生缓存
 };
 
 class SAManager
 {
 public:
-    uint32_t mapSpiToSessionId(const IKE_SPI &spi)
+    uint32_t mapIKESpiToSessionId(const IKE_SPI &spi)
     {
         // 使用自定义哈希函数生成32位会话ID
         IKE_SPI_Hash hasher;
         uint32_t sessionId = static_cast<uint32_t>(hasher(spi));
 
         // 检测冲突并处理
-        while (sessionToSPI.find(sessionId) != sessionToSPI.end() || IPSecSACache_.find(sessionId) != IPSecSACache_.end())
+        while (sessionIDToIKESPI.find(sessionId) != sessionIDToIKESPI.end() || sessionIDToIPSecSPI.find(sessionId) != sessionIDToIPSecSPI.end())
         {
             sessionId++;
         }
-        sessionToSPI[sessionId] = spi;
+        sessionIDToIKESPI[sessionId] = spi;
+        // 返回一个无冲突的会话ID
+        return sessionId;
+    }
+    uint32_t mapIPSecSpiToSessionId(const uint32_t spi)
+    {
+        // 使用std::hash<uint32_t>生成32位会话ID
+        std::hash<uint32_t> hasher;
+        uint32_t sessionId = hasher(spi);
+
+        // 检测冲突并处理
+        while (sessionIDToIKESPI.find(sessionId) != sessionIDToIKESPI.end() || sessionIDToIPSecSPI.find(sessionId) != sessionIDToIPSecSPI.end())
+        {
+            sessionId++;
+        }
+        sessionIDToIPSecSPI[sessionId] = spi;
         // 返回一个无冲突的会话ID
         return sessionId;
     }
@@ -108,13 +123,15 @@ public:
 private:
     std::mutex mutex_;
     // 定义IPSec spi到IPSecSAData的映射
-    std::unordered_map<uint32_t, IPSec_SAData> IPSecSACache_;
+    std::unordered_map<uint32_t, IPSec_SAData> IPSec_SACache_;
     // 定义IKE spi到IKESAData的映射
-    std::unordered_map<IKE_SPI, IKE_SAData, IKE_SPI_Hash> IKE_SACache;
+    std::unordered_map<IKE_SPI, IKE_SAData, IKE_SPI_Hash> IKE_SACache_;
     // 定义全局IPSec SA数量
     int IPSecSA_number;
-    //定义会话id到IKE_SPI的映射
-    std::unordered_map<uint32_t, IKE_SPI> sessionToSPI;
+    // 定义会话id到IKE_SPI的映射
+    std::unordered_map<uint32_t, IKE_SPI> sessionIDToIKESPI;
+    // 定义会话id到IPSec_SPI的映射
+    std::unordered_map<uint32_t, uint32_t> sessionIDToIPSecSPI;
 };
 
 #endif // SAMANAGEMENT_HPP

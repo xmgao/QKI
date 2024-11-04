@@ -6,6 +6,14 @@
 
 extern SAManager globalSAManager;
 
+// 辅助函数：发送确认消息
+void sendConfirmMessage(int fd, ErrorCode errorCode)
+{
+    ConfirmMessagePacket pktConfirm;
+    pktConfirm.constructConfirmMessagePacket(static_cast<uint32_t>(errorCode));
+    send(fd, pktConfirm.getBufferPtr(), pktConfirm.getBufferSize(), 0);
+}
+
 // 处理IPSECSA注册请求
 void handleRegisterIPSECSAPacket(int fd, PacketBase &pkt1)
 {
@@ -30,6 +38,7 @@ void handleRegisterIPSECSAPacket(int fd, PacketBase &pkt1)
                   << " is_inbound: " << is_inbound
                   << std::endl;
     }
+    // 暂时不作回复
     globalSAManager.registerIPSecSA(sourceip, desip, spi, is_inbound);
 }
 
@@ -56,6 +65,13 @@ void handleIPSECSAKeyRequestPacket(int fd, PacketBase &pkt1)
                   << std::endl;
     }
     std::string getkeyvalue = globalSAManager.getIPSecKey(spi, seq, request_len);
+    if (getkeyvalue.empty())
+    {
+        sendConfirmMessage(fd, ErrorCode::GETKEYERROR);
+        std::cerr << "Failed to get key!" << std::endl;
+        return;
+    }
+
     // 返回密钥
     IPSECSAKeyRequestPacket pkt3;
     pkt3.ConstructIPSECSAkeyReturnPacket(spi, seq, request_len, getkeyvalue);
@@ -139,6 +155,12 @@ void handleIKESAKeyRequestPacket(int fd, PacketBase &pkt1)
                   << std::endl;
     }
     std::string getkeyvalue = globalSAManager.getIKESAKey(spiI, spiR, seq, request_len);
+    if (getkeyvalue.empty())
+    {
+        sendConfirmMessage(fd, ErrorCode::GETKEYERROR);
+        std::cerr << "Failed to get key!" << std::endl;
+        return;
+    }
     // 返回密钥
     IKESAKeyRequestPacket pkt3;
     pkt3.ConstructIKESAkeyReturnPacket(spiI, spiR, seq, request_len, getkeyvalue);
@@ -192,20 +214,21 @@ void handleUnknownPacket(int fd, PacketBase &pkt)
 // 模拟从消息中解析出类型
 PacketType parsePacketType(uint16_t type)
 {
-    switch (type) {
-        case static_cast<uint16_t>(PacketType::REGISTERIKESA):
-            return PacketType::REGISTERIKESA;
-        case static_cast<uint16_t>(PacketType::GETKEYIKESA):
-            return PacketType::GETKEYIKESA;
-        case static_cast<uint16_t>(PacketType::DESTORYIKESA):
-            return PacketType::DESTORYIKESA;
-        case static_cast<uint16_t>(PacketType::REGISTERIPSECSA):
-            return PacketType::REGISTERIPSECSA;
-        case static_cast<uint16_t>(PacketType::GETKEYIPSECSA):
-            return PacketType::GETKEYIPSECSA;
-        case static_cast<uint16_t>(PacketType::DESTORYIPSECSA):
-            return PacketType::DESTORYIPSECSA;
-        default:
-            return PacketType::MSG_TYPE_UNKNOWN;
+    switch (type)
+    {
+    case static_cast<uint16_t>(PacketType::REGISTERIKESA):
+        return PacketType::REGISTERIKESA;
+    case static_cast<uint16_t>(PacketType::GETKEYIKESA):
+        return PacketType::GETKEYIKESA;
+    case static_cast<uint16_t>(PacketType::DESTORYIKESA):
+        return PacketType::DESTORYIKESA;
+    case static_cast<uint16_t>(PacketType::REGISTERIPSECSA):
+        return PacketType::REGISTERIPSECSA;
+    case static_cast<uint16_t>(PacketType::GETKEYIPSECSA):
+        return PacketType::GETKEYIPSECSA;
+    case static_cast<uint16_t>(PacketType::DESTORYIPSECSA):
+        return PacketType::DESTORYIPSECSA;
+    default:
+        return PacketType::MSG_TYPE_UNKNOWN;
     }
 }

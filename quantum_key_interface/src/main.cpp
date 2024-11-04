@@ -13,6 +13,8 @@ MessageHandlerRegistry global_registry;
 
 uint32_t LOCAL_QKI_IPADDRESS = 0;
 uint32_t REMOTE_QKI_IPADDRESS = 0;
+const int LISTEN_PORT_QKI = 50001;
+int KM_LISTEN_PORT = 50000;
 
 int main(int argc, char *argv[])
 {
@@ -28,13 +30,16 @@ int main(int argc, char *argv[])
     REMOTE_QKI_IPADDRESS = IpStringTouint32(remote_qki_ipAddress);
 
     std::cout << "begin register!" << std::endl;
+    global_registry.registerHandler(PacketType::REGISTERIKESA, handleRegisterIKESAPacket);
+    global_registry.registerHandler(PacketType::GETKEYIKESA, handleIKESAKeyRequestPacket);
+    global_registry.registerHandler(PacketType::DESTORYIKESA, handleDestroyIKESAPacket);
     global_registry.registerHandler(PacketType::REGISTERIPSECSA, handleRegisterIPSECSAPacket);
     global_registry.registerHandler(PacketType::GETKEYIPSECSA, handleIPSECSAKeyRequestPacket);
     global_registry.registerHandler(PacketType::DESTORYIPSECSA, handleDestroyIPSECSAPacket);
     global_registry.registerHandler(PacketType::MSG_TYPE_UNKNOWN, handleUnknownPacket);
 
     // 一个主调度器，用函数指针和回调函数的形式分发处理任务
-    Server server1(LISTEN_PORT_IPSec);
+    Server server1(LISTEN_PORT_QKI);
     std::cout << "begin server1.run!" << std::endl;
     server1.run();
 
