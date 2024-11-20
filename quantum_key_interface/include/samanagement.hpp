@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <vector>
 #include <queue>
+#include "qkdf/qkdf.hpp"
 
 // 自定义结构来表示 128 位的 SPI
 struct IKE_SPI
@@ -63,6 +64,7 @@ struct IPSec_SAData
     int KM_fd_ = -1;
     int request_id = 1;
     std::vector<uint8_t> keybuffer; // 原始密钥缓存
+    QKDF qkdf_;
     std::vector<uint8_t> keyderive; // 密钥派生缓存
 };
 

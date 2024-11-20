@@ -3,7 +3,17 @@
 
 #include "packetbase.hpp"
 
-#define KEYREQUEST_HEADER_SIZE 10
+struct __attribute__((packed)) keyrequesthdr_struct
+{
+    uint32_t keyreq_sessid;
+    uint32_t keyreq_reqid;
+    uint16_t keyreq_reqlen;
+};
+
+using keyrequesthdr = struct keyrequesthdr_struct;
+
+constexpr size_t KEYREQUEST_HEADER_SIZE = sizeof(keyrequesthdr);
+
 /**
  * @brief structure:
  *        |<-4 bytes->|<-4 bytes->|<-4 bytes->|<-2 bytes->|<----------512 bytes---------->|
@@ -16,9 +26,7 @@
 class KeyRequestPacket : public PacketBase
 {
 private:
-    uint32_t *keyreq_sessid_ptr_;
-    uint32_t *keyreq_reqid_ptr_;
-    uint16_t *keyreq_reqlen_ptr_;
+    keyrequesthdr *keyreq_hdrptr_;
     uint8_t *keyreq_payloadptr_;
 
 public:
@@ -29,9 +37,7 @@ public:
     KeyRequestPacket(KeyRequestPacket &&other) noexcept;
 
     uint8_t *getKeyBufferPtr();
-    uint32_t *getsessidPtr();
-    uint32_t *getreqidPtr();
-    uint16_t *getreqlenPtr();
+    keyrequesthdr *getKeyRequestHeaderPtr();
 
     void constructkeyrequestpacket(uint32_t session_id, uint32_t request_id, uint16_t request_len);
 

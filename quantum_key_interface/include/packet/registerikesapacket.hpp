@@ -12,15 +12,22 @@
  *        |<---------------------28 bytes max-------------------------------->|
  */
 
-#define REGISTERIKESA_HEADER_SIZE 24
+struct __attribute__((packed)) registerikesahdr_struct
+{
+    uint32_t registerikesa_source;
+    uint32_t registerikesa_destination;
+    uint64_t registerikesa_spiI;
+    uint64_t registerikesa_spiR;
+};
+
+using registerikesahdr = struct registerikesahdr_struct;
+
+constexpr size_t REGISTERIKESA_HEADER_SIZE = sizeof(registerikesahdr);
 
 class RegisterIKESAPacket : public PacketBase
 {
 private:
-    uint32_t *registerikesa_source_ptr_;
-    uint32_t *registerikesa_destination_ptr_;
-    uint64_t *registerikesa_spiI_ptr_;
-    uint64_t *registerikesa_spiR_ptr_;
+    registerikesahdr *registerikesahdr_ptr;
 
 public:
     RegisterIKESAPacket();
@@ -29,10 +36,7 @@ public:
     RegisterIKESAPacket(const RegisterIKESAPacket &other);
     RegisterIKESAPacket(RegisterIKESAPacket &&other) noexcept;
 
-    uint32_t *getsourcePtr();
-    uint32_t *getdesPtr();
-    uint64_t *getspiIPtr();
-    uint64_t *getspiRPtr();
+    registerikesahdr *getRegisterIKESAPacketHeaderPtr();
 
     void ConstructRegisterIKESAPacket(uint32_t sourceip_, uint32_t desip_, uint64_t spi_i, uint64_t spi_r);
 

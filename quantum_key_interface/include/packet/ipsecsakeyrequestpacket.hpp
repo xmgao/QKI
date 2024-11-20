@@ -3,7 +3,17 @@
 
 #include "packetbase.hpp"
 
-#define IPSECSAKEYREQUEST_HEADER_SIZE 10
+struct __attribute__((packed)) ipsecsakeyrequesthdr_struct
+{
+    uint32_t keyreq_spi;
+    uint32_t keyreq_seq;
+    uint16_t keyreq_reqlen;
+};
+
+using ipsecsakeyrequesthdr = struct ipsecsakeyrequesthdr_struct;
+
+constexpr size_t IPSECSAKEYREQUEST_HEADER_SIZE = sizeof(ipsecsakeyrequesthdr);
+
 /**
  * @brief structure:
  *        |<-4 bytes->|<-4 bytes->|<-4 bytes->|<-2 bytes->|<----------512 bytes---------->|
@@ -16,9 +26,7 @@
 class IPSECSAKeyRequestPacket : public PacketBase
 {
 private:
-    uint32_t *keyreq_spi_ptr_;
-    uint32_t *keyreq_seq_ptr_;
-    uint16_t *keyreq_reqlen_ptr_;
+    ipsecsakeyrequesthdr *keyreq_hdrptr_;
     uint8_t *keyreq_payloadptr_;
 
 public:
@@ -29,9 +37,7 @@ public:
     IPSECSAKeyRequestPacket(IPSECSAKeyRequestPacket &&other) noexcept;
 
     uint8_t *getKeyBufferPtr();
-    uint32_t *getspiPtr();
-    uint32_t *getseqPtr();
-    uint16_t *getreqlenPtr();
+    ipsecsakeyrequesthdr * getKeyRequestHeaderPtr();
 
     void ConstructIPSECSAkeyRequestPacket(uint32_t spi, uint32_t seq, uint16_t request_len);
 

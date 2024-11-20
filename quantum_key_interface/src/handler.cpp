@@ -25,21 +25,19 @@ void handleRegisterIPSECSAPacket(int fd, PacketBase &pkt1)
 
     // 带参构造RegisterIPSECSAPacket
     RegisterIPSECSAPacket pkt2(std::move(pkt1));
-    uint32_t sourceip = *pkt2.getsourcePtr();
-    uint32_t desip = *pkt2.getdesPtr();
-    uint32_t spi = *pkt2.getspiPtr();
-    bool is_inbound = *pkt2.getinboundPtr();
+    registeripsecsahdr *hdr = pkt2.getRegisterIPSECSAPacketHeader();
+
     if (DEBUG_LEVEL == 1)
     {
         std::cout << "Received RegisterIPSECSA packet: "
-                  << " source_ip: " << uint32ToIpString(sourceip)
-                  << " dest_ip: " << uint32ToIpString(desip)
-                  << " spi: " << spi
-                  << " is_inbound: " << is_inbound
+                  << " source_ip: " << uint32ToIpString(hdr->registeripsecsa_source)
+                  << " dest_ip: " << uint32ToIpString(hdr->registeripsecsa_destination)
+                  << " spi: " << hdr->registeripsecsa_spi
+                  << " is_inbound: " << hdr->is_inbound
                   << std::endl;
     }
     // 暂时不作回复
-    globalSAManager.registerIPSecSA(sourceip, desip, spi, is_inbound);
+    globalSAManager.registerIPSecSA(hdr->registeripsecsa_source, hdr->registeripsecsa_destination, hdr->registeripsecsa_spi, hdr->is_inbound);
 }
 
 // 处理IPSECSA获取密钥
@@ -53,18 +51,17 @@ void handleIPSECSAKeyRequestPacket(int fd, PacketBase &pkt1)
 
     // 带参构造KeyRequestPacket
     IPSECSAKeyRequestPacket pkt2(std::move(pkt1));
-    uint32_t spi = *pkt2.getspiPtr();
-    uint32_t seq = *pkt2.getseqPtr();
-    uint16_t request_len = *pkt2.getreqlenPtr();
+    ipsecsakeyrequesthdr *hdr = pkt2.getKeyRequestHeaderPtr();
+
     if (DEBUG_LEVEL == 1)
     {
         std::cout << "Received IPSECSAKEYREQUEST packet: "
-                  << " spi: " << spi
-                  << " seq: " << seq
-                  << " request_len: " << request_len
+                  << " spi: " << hdr->keyreq_spi
+                  << " seq: " << hdr->keyreq_seq
+                  << " request_len: " << hdr->keyreq_reqlen
                   << std::endl;
     }
-    std::string getkeyvalue = globalSAManager.getIPSecKey(spi, seq, request_len);
+    std::string getkeyvalue = globalSAManager.getIPSecKey(hdr->keyreq_spi, hdr->keyreq_seq, hdr->keyreq_reqlen);
     if (getkeyvalue.empty())
     {
         sendConfirmMessage(fd, ErrorCode::GETKEYERROR);
@@ -74,7 +71,7 @@ void handleIPSECSAKeyRequestPacket(int fd, PacketBase &pkt1)
 
     // 返回密钥
     IPSECSAKeyRequestPacket pkt3;
-    pkt3.ConstructIPSECSAkeyReturnPacket(spi, seq, request_len, getkeyvalue);
+    pkt3.ConstructIPSECSAkeyReturnPacket(hdr->keyreq_spi, hdr->keyreq_seq, hdr->keyreq_reqlen, getkeyvalue);
     send(fd, pkt3.getBufferPtr(), pkt3.getBufferSize(), 0);
 }
 
@@ -88,20 +85,18 @@ void handleDestroyIPSECSAPacket(int fd, PacketBase &pkt1)
     pkt1.setBufferSize(BASE_HEADER_SIZE + length);
     // 带参构造CloseSessionPacket
     RegisterIPSECSAPacket pkt2(std::move(pkt1));
-    uint32_t sourceip = *pkt2.getsourcePtr();
-    uint32_t desip = *pkt2.getdesPtr();
-    uint32_t spi = *pkt2.getspiPtr();
-    bool is_inbound = *pkt2.getinboundPtr();
+    registeripsecsahdr *hdr = pkt2.getRegisterIPSECSAPacketHeader();
+
     if (DEBUG_LEVEL == 1)
     {
-        std::cout << "Received CLOSESESSION packet: "
-                  << " source_ip: " << uint32ToIpString(sourceip)
-                  << " dest_ip: " << uint32ToIpString(desip)
-                  << " spi: " << spi
-                  << " is_inbound: " << is_inbound
+        std::cout << "Received DestoryIPSECSA packet: "
+                  << " source_ip: " << uint32ToIpString(hdr->registeripsecsa_source)
+                  << " dest_ip: " << uint32ToIpString(hdr->registeripsecsa_destination)
+                  << " spi: " << hdr->registeripsecsa_spi
+                  << " is_inbound: " << hdr->is_inbound
                   << std::endl;
     }
-    globalSAManager.destoryIPSecSA(spi);
+    globalSAManager.destoryIPSecSA(hdr->registeripsecsa_spi);
     close(fd);
 }
 
@@ -115,20 +110,18 @@ void handleRegisterIKESAPacket(int fd, PacketBase &pkt1)
 
     // 带参构造RegisterIKESAPacket
     RegisterIKESAPacket pkt2(std::move(pkt1));
-    uint32_t sourceip = *pkt2.getsourcePtr();
-    uint32_t desip = *pkt2.getdesPtr();
-    uint64_t spiI = *pkt2.getspiIPtr();
-    uint64_t spiR = *pkt2.getspiRPtr();
+    registerikesahdr *hdr = pkt2.getRegisterIKESAPacketHeaderPtr();
+
     if (DEBUG_LEVEL == 1)
     {
         std::cout << "Received RegisterIKESA packet: "
-                  << " source_ip: " << uint32ToIpString(sourceip)
-                  << " dest_ip: " << uint32ToIpString(desip)
-                  << " spiI: " << spiI
-                  << " spiR: " << spiR
+                  << " source_ip: " << uint32ToIpString(hdr->registerikesa_source)
+                  << " dest_ip: " << uint32ToIpString(hdr->registerikesa_destination)
+                  << " spiI: " << hdr->registerikesa_spiI
+                  << " spiR: " << hdr->registerikesa_spiR
                   << std::endl;
     }
-    globalSAManager.registerIKESA(sourceip, desip, spiI, spiR);
+    globalSAManager.registerIKESA(hdr->registerikesa_source, hdr->registerikesa_destination, hdr->registerikesa_spiI, hdr->registerikesa_spiR);
 }
 
 void handleIKESAKeyRequestPacket(int fd, PacketBase &pkt1)
@@ -141,20 +134,17 @@ void handleIKESAKeyRequestPacket(int fd, PacketBase &pkt1)
 
     // 带参构造KeyRequestPacket
     IKESAKeyRequestPacket pkt2(std::move(pkt1));
-    uint64_t spiI = *pkt2.getspiIPtr();
-    uint64_t spiR = *pkt2.getspiRPtr();
-    uint32_t seq = *pkt2.getseqPtr();
-    uint16_t request_len = *pkt2.getreqlenPtr();
+    ikesakeyrequesthdr *hdr = pkt2.getIKESAKeyRequestHdrPtr();
     if (DEBUG_LEVEL == 1)
     {
         std::cout << "Received IKECSAKEYREQUEST packet: "
-                  << " spiI: " << spiI
-                  << " spiR: " << spiR
-                  << " seq: " << seq
-                  << " request_len: " << request_len
+                  << " spiI: " << hdr->keyreq_spiI
+                  << " spiR: " << hdr->keyreq_spiR
+                  << " seq: " << hdr->keyreq_seq
+                  << " request_len: " << hdr->keyreq_reqlen
                   << std::endl;
     }
-    std::string getkeyvalue = globalSAManager.getIKESAKey(spiI, spiR, seq, request_len);
+    std::string getkeyvalue = globalSAManager.getIKESAKey(hdr->keyreq_spiI, hdr->keyreq_spiR, hdr->keyreq_seq, hdr->keyreq_reqlen);
     if (getkeyvalue.empty())
     {
         sendConfirmMessage(fd, ErrorCode::GETKEYERROR);
@@ -163,7 +153,7 @@ void handleIKESAKeyRequestPacket(int fd, PacketBase &pkt1)
     }
     // 返回密钥
     IKESAKeyRequestPacket pkt3;
-    pkt3.ConstructIKESAkeyReturnPacket(spiI, spiR, seq, request_len, getkeyvalue);
+    pkt3.ConstructIKESAkeyReturnPacket(hdr->keyreq_spiI, hdr->keyreq_spiR, hdr->keyreq_seq, hdr->keyreq_reqlen, getkeyvalue);
     send(fd, pkt3.getBufferPtr(), pkt3.getBufferSize(), 0);
 }
 
@@ -176,20 +166,17 @@ void handleDestroyIKESAPacket(int fd, PacketBase &pkt1)
     pkt1.setBufferSize(BASE_HEADER_SIZE + length);
     // 带参构造DestoryPacket
     RegisterIKESAPacket pkt2(std::move(pkt1));
-    uint32_t sourceip = *pkt2.getsourcePtr();
-    uint32_t desip = *pkt2.getdesPtr();
-    uint64_t spiI = *pkt2.getspiIPtr();
-    uint64_t spiR = *pkt2.getspiRPtr();
+    registerikesahdr *hdr = pkt2.getRegisterIKESAPacketHeaderPtr();
     if (DEBUG_LEVEL == 1)
     {
         std::cout << "Received DestoryIKESA packet: "
-                  << " source_ip: " << uint32ToIpString(sourceip)
-                  << " dest_ip: " << uint32ToIpString(desip)
-                  << " spiI: " << spiI
-                  << " spiR: " << spiR
+                  << " source_ip: " << uint32ToIpString(hdr->registerikesa_source)
+                  << " dest_ip: " << uint32ToIpString(hdr->registerikesa_destination)
+                  << " spiI: " << hdr->registerikesa_spiI
+                  << " spiR: " << hdr->registerikesa_spiR
                   << std::endl;
     }
-    globalSAManager.destoryIKESA(spiI, spiR);
+    globalSAManager.destoryIKESA(hdr->registerikesa_spiI, hdr->registerikesa_spiR);
     close(fd);
 }
 

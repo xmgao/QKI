@@ -153,7 +153,7 @@ bool opensession(IKE_SAData &sadata)
 // SA通过会话向KM索取密钥，另一种模式是自己管理密钥
 bool addKey(IPSec_SAData &sadata)
 {
-    int request_len = 512;
+    int request_len = sadata.qkdf_.BlockSize; // 每次请求一个mdk
     // 构造请求密钥包
     KeyRequestPacket pkt2;
     pkt2.constructkeyrequestpacket(sadata.session_id_, sadata.request_id, request_len);
@@ -191,11 +191,15 @@ bool addKey(IPSec_SAData &sadata)
     std::string getkeyvalue;
     if (value1 == static_cast<uint16_t>(PacketType::KEYRETURN))
     {
-        // 带参构造KeyRequestPacket,成功返回512字节密钥，插入到buffer末尾
+        // 带参构造KeyRequestPacket,成功返回mdk字节密钥，插入到buffer末尾
         KeyRequestPacket pkt4(std::move(pkt3));
         getkeyvalue.resize(request_len);
         std::memcpy(&getkeyvalue[0], pkt4.getKeyBufferPtr(), request_len);
-        sadata.keybuffer.insert(sadata.keybuffer.end(), getkeyvalue.begin(), getkeyvalue.end());
+        sadata.keybuffer.insert(sadata.keybuffer.end(), getkeyvalue.begin(), getkeyvalue.end()); // 存入原始密钥
+        // 获取派生材料
+        std::vector<uint8_t> input_key_buf(getkeyvalue.begin(), getkeyvalue.begin() + request_len);
+        byte output = sadata.qkdf_.SingleRound(input_key_buf);                         // 进行派生
+        sadata.keyderive.insert(sadata.keyderive.end(), output.begin(), output.end()); // 插入派生密钥到末尾
         return true;
     }
     else
@@ -296,7 +300,9 @@ bool SAManager::registerIPSecSA(uint32_t sourceip, uint32_t desip, uint32_t spi,
     newSAData.desip_ = desip;
     newSAData.spi_ = spi;
     newSAData.is_inbound_ = is_inbound;
-    newSAData.session_id_ = globalSAManager.mapIPSecSpiToSessionId(spi); //调用成员函数
+    newSAData.qkdf_.SetName(std::to_string(spi));
+    newSAData.qkdf_.Initialized();
+    newSAData.session_id_ = globalSAManager.mapIPSecSpiToSessionId(spi); // 调用成员函数
     if (!connect_KM(newSAData))
     {
         std::cerr << "connect km error" << std::endl;
@@ -323,7 +329,7 @@ std::string SAManager::getIPSecKey(uint32_t spi, uint32_t seq, uint16_t request_
     if (it != IPSec_SACache_.end())
     {
         // 返回找到的密钥
-        int useful_size = it->second.keybuffer.size() - it->second.index_;
+        int useful_size = it->second.keyderive.size();
         while (useful_size < request_len)
         {
             // 补充密钥
@@ -333,10 +339,10 @@ std::string SAManager::getIPSecKey(uint32_t spi, uint32_t seq, uint16_t request_
                 std::cerr << "add ipsecsa key failed." << std::endl;
                 return "";
             }
-            useful_size = it->second.keybuffer.size() - it->second.index_;
+            useful_size = it->second.keyderive.size();
         }
-        std::string returnkeyvalue(it->second.keybuffer.begin() + it->second.index_, it->second.keybuffer.begin() + it->second.index_ + request_len);
-        it->second.index_ += request_len;
+        std::string returnkeyvalue(it->second.keyderive.begin(), it->second.keyderive.begin() + request_len);
+        it->second.keyderive.erase(it->second.keyderive.begin(), it->second.keyderive.begin() + request_len); // 用后删除
         return returnkeyvalue;
     }
     return ""; // 如果未找到spi，返回空字符串
@@ -429,7 +435,7 @@ std::string SAManager::getIKESAKey(uint64_t spiI, uint64_t spiR, uint32_t seq, u
 
 bool SAManager::destoryIKESA(uint64_t spiI, uint64_t spiR)
 {
-   IKE_SPI Spitemple = {spiI, spiR};
+    IKE_SPI Spitemple = {spiI, spiR};
     auto it = IKE_SACache_.find(Spitemple);
     if (it != IKE_SACache_.end())
     {

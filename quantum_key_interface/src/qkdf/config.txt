@@ -1,0 +1,12 @@
+period(ms):
+100
+hash algorithm:
+SHA256
+rate(byte per second):
+10000000
+epsilon:
+1e-32
+delta:
+0.01
+context:
+ashbncdeloihdebceswh

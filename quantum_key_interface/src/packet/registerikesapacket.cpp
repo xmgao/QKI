@@ -1,69 +1,41 @@
 #include "packet/registerikesapacket.hpp"
 
 RegisterIKESAPacket::RegisterIKESAPacket()
-    : registerikesa_source_ptr_(reinterpret_cast<uint32_t *>(buffer_ + BASE_HEADER_SIZE)),
-      registerikesa_destination_ptr_(reinterpret_cast<uint32_t *>(buffer_ + BASE_HEADER_SIZE + sizeof(uint32_t))),
-      registerikesa_spiI_ptr_(reinterpret_cast<uint64_t *>(buffer_ + BASE_HEADER_SIZE + 2 * sizeof(uint32_t))),
-      registerikesa_spiR_ptr_(reinterpret_cast<uint64_t *>(buffer_ + BASE_HEADER_SIZE + 2 * sizeof(uint32_t) + sizeof(uint64_t))) {}
+    : registerikesahdr_ptr(reinterpret_cast<registerikesahdr *>(buffer_ + BASE_HEADER_SIZE)) {}
 
 RegisterIKESAPacket::RegisterIKESAPacket(PacketBase &&pkt_base)
     : PacketBase(std::move(pkt_base)),
-      registerikesa_source_ptr_(reinterpret_cast<uint32_t *>(buffer_ + BASE_HEADER_SIZE)),
-      registerikesa_destination_ptr_(reinterpret_cast<uint32_t *>(buffer_ + BASE_HEADER_SIZE + sizeof(uint32_t))),
-      registerikesa_spiI_ptr_(reinterpret_cast<uint64_t *>(buffer_ + BASE_HEADER_SIZE + 2 * sizeof(uint32_t))),
-      registerikesa_spiR_ptr_(reinterpret_cast<uint64_t *>(buffer_ + BASE_HEADER_SIZE + 2 * sizeof(uint32_t) + sizeof(uint64_t))) {}
+      registerikesahdr_ptr(reinterpret_cast<registerikesahdr *>(buffer_ + BASE_HEADER_SIZE)) {}
 
 RegisterIKESAPacket::RegisterIKESAPacket(const RegisterIKESAPacket &other)
     : PacketBase(other),
-      registerikesa_source_ptr_(reinterpret_cast<uint32_t *>(buffer_ + BASE_HEADER_SIZE)),
-      registerikesa_destination_ptr_(reinterpret_cast<uint32_t *>(buffer_ + BASE_HEADER_SIZE + sizeof(uint32_t))),
-      registerikesa_spiI_ptr_(reinterpret_cast<uint64_t *>(buffer_ + BASE_HEADER_SIZE + 2 * sizeof(uint32_t))),
-      registerikesa_spiR_ptr_(reinterpret_cast<uint64_t *>(buffer_ + BASE_HEADER_SIZE + 2 * sizeof(uint32_t) + sizeof(uint64_t))) {}
+      registerikesahdr_ptr(reinterpret_cast<registerikesahdr *>(buffer_ + BASE_HEADER_SIZE)) {}
 
 RegisterIKESAPacket::RegisterIKESAPacket(RegisterIKESAPacket &&other) noexcept = default;
 
-uint32_t *RegisterIKESAPacket::getsourcePtr()
+registerikesahdr *RegisterIKESAPacket::getRegisterIKESAPacketHeaderPtr()
 {
-    return registerikesa_source_ptr_;
-}
-
-uint32_t *RegisterIKESAPacket::getdesPtr()
-{
-    return registerikesa_destination_ptr_;
-}
-
-uint64_t *RegisterIKESAPacket::getspiIPtr()
-{
-    return registerikesa_spiI_ptr_;
-}
-
-uint64_t *RegisterIKESAPacket::getspiRPtr()
-{
-    return registerikesa_spiR_ptr_;
+    return registerikesahdr_ptr;
 }
 
 void RegisterIKESAPacket::ConstructRegisterIKESAPacket(uint32_t sourceip_, uint32_t desip_, uint64_t spi_i, uint64_t spi_r)
 {
-    uint16_t intvalue = static_cast<uint16_t>(PacketType::REGISTERIKESA);
-    std::memcpy(this->getBufferPtr(), &intvalue, sizeof(uint16_t));
-    uint16_t length = REGISTERIKESA_HEADER_SIZE;
-    std::memcpy(this->getBufferPtr() + sizeof(uint16_t), &length, sizeof(uint16_t));
+    header_->packet_type = static_cast<uint16_t>(PacketType::REGISTERIKESA);
+    header_->packet_length = REGISTERIKESA_HEADER_SIZE;
+    registerikesahdr_ptr->registerikesa_source = sourceip_;
+    registerikesahdr_ptr->registerikesa_destination = desip_;
+    registerikesahdr_ptr->registerikesa_spiI = spi_i;
+    registerikesahdr_ptr->registerikesa_spiR = spi_r;
     this->setBufferSize(BASE_HEADER_SIZE + REGISTERIKESA_HEADER_SIZE);
-    *this->registerikesa_source_ptr_ = sourceip_;
-    *this->registerikesa_destination_ptr_ = desip_;
-    *this->registerikesa_spiI_ptr_ = spi_i;
-    *this->registerikesa_spiR_ptr_ = spi_r;
 }
 
 void RegisterIKESAPacket::ConstructDestoryIKESAPacket(uint32_t sourceip_, uint32_t desip_, uint64_t spi_i, uint64_t spi_r)
 {
-    uint16_t intvalue = static_cast<uint16_t>(PacketType::DESTORYIKESA);
-    std::memcpy(this->getBufferPtr(), &intvalue, sizeof(uint16_t));
-    uint16_t length = REGISTERIKESA_HEADER_SIZE;
-    std::memcpy(this->getBufferPtr() + sizeof(uint16_t), &length, sizeof(uint16_t));
+    header_->packet_type = static_cast<uint16_t>(PacketType::DESTORYIKESA);
+    header_->packet_length = REGISTERIKESA_HEADER_SIZE;
+    registerikesahdr_ptr->registerikesa_source = sourceip_;
+    registerikesahdr_ptr->registerikesa_destination = desip_;
+    registerikesahdr_ptr->registerikesa_spiI = spi_i;
+    registerikesahdr_ptr->registerikesa_spiR = spi_r;
     this->setBufferSize(BASE_HEADER_SIZE + REGISTERIKESA_HEADER_SIZE);
-    *this->registerikesa_source_ptr_ = sourceip_;
-    *this->registerikesa_destination_ptr_ = desip_;
-    *this->registerikesa_spiI_ptr_ = spi_i;
-    *this->registerikesa_spiR_ptr_ = spi_r;
 }

@@ -12,15 +12,22 @@
  *        |<---------------------17 bytes max------------------------>|
  */
 
-#define OPENSESSION_HEADER_SIZE 13
+struct __attribute__((packed)) opensessionhdr_struct
+{
+    uint32_t opensession_source;
+    uint32_t opensession_destination;
+    uint32_t opensession_session;
+    bool is_inbound;
+};
+
+using opensessionhdr = struct opensessionhdr_struct;
+
+constexpr size_t OPENSESSION_HEADER_SIZE = sizeof(opensessionhdr);
 
 class OpenSessionPacket : public PacketBase
 {
 private:
-    uint32_t *opensession_source_ptr_;
-    uint32_t *opensession_destination_ptr_;
-    uint32_t *opensession_session_ptr_;
-    bool *is_inbound_ptr_;
+    opensessionhdr *opensession_header_ptr;
 
 public:
     OpenSessionPacket();
@@ -29,10 +36,7 @@ public:
     OpenSessionPacket(const OpenSessionPacket &other);
     OpenSessionPacket(OpenSessionPacket &&other) noexcept;
 
-    uint32_t *getsourcePtr();
-    uint32_t *getdesPtr();
-    uint32_t *getsessidPtr();
-    bool *getinboundPtr();
+    opensessionhdr *get_opensession_header_ptr();
 
     void constructopensessionpacket(uint32_t sourceip_, uint32_t desip_, uint32_t session_id, bool is_inbound);
 
