@@ -30,14 +30,14 @@ void handleRegisterIPSECSAPacket(int fd, PacketBase &pkt1)
     if (DEBUG_LEVEL == 1)
     {
         std::cout << "Received RegisterIPSECSA packet: "
-                  << " source_ip: " << uint32ToIpString(hdr->registeripsecsa_source)
-                  << " dest_ip: " << uint32ToIpString(hdr->registeripsecsa_destination)
-                  << " spi: " << hdr->registeripsecsa_spi
+                  << " source_ip: " << uint32ToIpString(ntohl(hdr->registeripsecsa_source))
+                  << " dest_ip: " << uint32ToIpString(ntohl(hdr->registeripsecsa_destination))
+                  << " spi: " << std::hex << std::setw(8) << std::setfill('0') << ntohl(hdr->registeripsecsa_spi) << std::dec // 恢复十进制格式
                   << " is_inbound: " << hdr->is_inbound
                   << std::endl;
     }
     // 暂时不作回复
-    globalSAManager.registerIPSecSA(hdr->registeripsecsa_source, hdr->registeripsecsa_destination, hdr->registeripsecsa_spi, hdr->is_inbound);
+    globalSAManager.registerIPSecSA(ntohl(hdr->registeripsecsa_source), ntohl(hdr->registeripsecsa_destination), hdr->registeripsecsa_spi, hdr->is_inbound);
 }
 
 // 处理IPSECSA获取密钥
@@ -56,7 +56,7 @@ void handleIPSECSAKeyRequestPacket(int fd, PacketBase &pkt1)
     if (DEBUG_LEVEL == 1)
     {
         std::cout << "Received IPSECSAKEYREQUEST packet: "
-                  << " spi: " << hdr->keyreq_spi
+                  << " spi: " << std::hex << std::setw(8) << std::setfill('0') << ntohl(hdr->keyreq_spi) << std::dec // 恢复十进制格式
                   << " seq: " << hdr->keyreq_seq
                   << " request_len: " << hdr->keyreq_reqlen
                   << std::endl;
@@ -67,6 +67,15 @@ void handleIPSECSAKeyRequestPacket(int fd, PacketBase &pkt1)
         sendConfirmMessage(fd, ErrorCode::GETKEYERROR);
         std::cerr << "Failed to get key!" << std::endl;
         return;
+    }
+    if (DEBUG_LEVEL == 1)
+    {
+        // 打印密钥
+        for (uint8_t byte : getkeyvalue)
+        {
+            std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << " ";
+        }
+        std::cout << std::dec << std::endl; // 恢复十进制格式
     }
 
     // 返回密钥
@@ -90,9 +99,9 @@ void handleDestroyIPSECSAPacket(int fd, PacketBase &pkt1)
     if (DEBUG_LEVEL == 1)
     {
         std::cout << "Received DestoryIPSECSA packet: "
-                  << " source_ip: " << uint32ToIpString(hdr->registeripsecsa_source)
-                  << " dest_ip: " << uint32ToIpString(hdr->registeripsecsa_destination)
-                  << " spi: " << hdr->registeripsecsa_spi
+                  << " source_ip: " << uint32ToIpString(ntohl(hdr->registeripsecsa_source))
+                  << " dest_ip: " << uint32ToIpString(ntohl(hdr->registeripsecsa_destination))
+                  << " spi: " << std::hex << std::setw(8) << std::setfill('0') << ntohl(hdr->registeripsecsa_spi) << std::dec // 恢复十进制格式
                   << " is_inbound: " << hdr->is_inbound
                   << std::endl;
     }
@@ -115,13 +124,13 @@ void handleRegisterIKESAPacket(int fd, PacketBase &pkt1)
     if (DEBUG_LEVEL == 1)
     {
         std::cout << "Received RegisterIKESA packet: "
-                  << " source_ip: " << uint32ToIpString(hdr->registerikesa_source)
-                  << " dest_ip: " << uint32ToIpString(hdr->registerikesa_destination)
-                  << " spiI: " << hdr->registerikesa_spiI
-                  << " spiR: " << hdr->registerikesa_spiR
+                  << " source_ip: " << uint32ToIpString(ntohl(hdr->registerikesa_source))
+                  << " dest_ip: " << uint32ToIpString(ntohl(hdr->registerikesa_destination))
+                  << " spiI: " << std::hex << std::setw(16) << ntohl(hdr->registerikesa_spiI) << std::dec // 恢复十进制格式
+                  << " spiR: " << std::hex << std::setw(16) << ntohl(hdr->registerikesa_spiR) << std::dec // 恢复十进制格式
                   << std::endl;
     }
-    globalSAManager.registerIKESA(hdr->registerikesa_source, hdr->registerikesa_destination, hdr->registerikesa_spiI, hdr->registerikesa_spiR);
+    globalSAManager.registerIKESA(ntohl(hdr->registerikesa_source), ntohl(hdr->registerikesa_destination), hdr->registerikesa_spiI, hdr->registerikesa_spiR);
 }
 
 void handleIKESAKeyRequestPacket(int fd, PacketBase &pkt1)
@@ -138,8 +147,8 @@ void handleIKESAKeyRequestPacket(int fd, PacketBase &pkt1)
     if (DEBUG_LEVEL == 1)
     {
         std::cout << "Received IKECSAKEYREQUEST packet: "
-                  << " spiI: " << hdr->keyreq_spiI
-                  << " spiR: " << hdr->keyreq_spiR
+                  << " spiI: " << std::hex << std::setw(16) << ntohl(hdr->keyreq_spiI) << std::dec // 恢复十进制格式
+                  << " spiR: " << std::hex << std::setw(16) << ntohl(hdr->keyreq_spiR) << std::dec // 恢复十进制格式
                   << " seq: " << hdr->keyreq_seq
                   << " request_len: " << hdr->keyreq_reqlen
                   << std::endl;
@@ -150,6 +159,15 @@ void handleIKESAKeyRequestPacket(int fd, PacketBase &pkt1)
         sendConfirmMessage(fd, ErrorCode::GETKEYERROR);
         std::cerr << "Failed to get key!" << std::endl;
         return;
+    }
+    if (DEBUG_LEVEL == 1)
+    {
+        // 打印密钥
+        for (uint8_t byte : getkeyvalue)
+        {
+            std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << " ";
+        }
+        std::cout << std::dec << std::endl; // 恢复十进制格式
     }
     // 返回密钥
     IKESAKeyRequestPacket pkt3;
@@ -170,10 +188,10 @@ void handleDestroyIKESAPacket(int fd, PacketBase &pkt1)
     if (DEBUG_LEVEL == 1)
     {
         std::cout << "Received DestoryIKESA packet: "
-                  << " source_ip: " << uint32ToIpString(hdr->registerikesa_source)
-                  << " dest_ip: " << uint32ToIpString(hdr->registerikesa_destination)
-                  << " spiI: " << hdr->registerikesa_spiI
-                  << " spiR: " << hdr->registerikesa_spiR
+                  << " source_ip: " << uint32ToIpString(ntohl(hdr->registerikesa_source))
+                  << " dest_ip: " << uint32ToIpString(ntohl(hdr->registerikesa_destination))
+                  << " spiI: " << std::hex << std::setw(16) << ntohl(hdr->registerikesa_spiI) << std::dec // 恢复十进制格式
+                  << " spiR: " << std::hex << std::setw(16) << ntohl(hdr->registerikesa_spiR) << std::dec // 恢复十进制格式
                   << std::endl;
     }
     globalSAManager.destoryIKESA(hdr->registerikesa_spiI, hdr->registerikesa_spiR);

@@ -3,7 +3,7 @@ period(ms):
 hash algorithm:
 SHA256
 rate(byte per second):
-10000000
+100000
 epsilon:
 1e-32
 delta:

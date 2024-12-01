@@ -4,6 +4,7 @@
 #include "handler.hpp"
 #include <thread>
 #include <cstdlib> // for std::atoi
+#include <stdlib.h>
 
 // È«¾ÖsessionManagerÊµÀý
 SAManager globalSAManager;
@@ -18,6 +19,7 @@ int KM_LISTEN_PORT = 50000;
 
 int main(int argc, char *argv[])
 {
+    system("rm -rf keyfile/*");
     if (argc != 3)
     {
         std::cerr << "Usage: " << argv[0] << " <local_qki IP address> <remote_qki IP address>" << std::endl;

@@ -49,7 +49,7 @@ uint64_t QKDF::SecureMR(int key_len)
 {
     key_len = 8 * key_len; // bit
     FloatType a_part = pow(2, -key_len);
-    FloatType h_part = pow(2, -this->BlockSize * 8 / 2);
+    FloatType h_part = pow(2, -this->BlockSize * 8);
 
     if (key_len < this->BlockSize * 8)
     {
@@ -182,7 +182,17 @@ byte QKDF::Expend(uint64_t amr)
 
         HMAC_CTX_free(hctx);
 
-        memcpy(input.data(), expended.data() + (int)i * this->BlockSize, this->BlockSize); // refresh y_(i-1)
+        // // evp
+        // EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+        // const EVP_MD *md = EVP_get_digestbyname(AlgName.c_str());
+        // EVP_PKEY *pkey = EVP_PKEY_new_raw_private_key(EVP_PKEY_HMAC, NULL, tmp_mdk.data(), this->BlockSize);
+        // EVP_DigestInit_ex(mdctx, md, NULL);
+        // EVP_DigestSignInit(mdctx, NULL, md, NULL, pkey);
+        // EVP_DigestUpdate(mdctx, input.data(), this->BlockSize * 2);
+        // EVP_DigestFinal_ex(mdctx, expended.data() + (int)(i - 1) * this->BlockSize, &len);
+        // EVP_MD_CTX_free(mdctx);
+
+        memcpy(input.data(), expended.data() + (int)(i - 1) * this->BlockSize, this->BlockSize); // refresh y_(i-1)
     }
     // for (uint8_t byte : expended) {
     //     std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << " ";
@@ -194,8 +204,8 @@ byte QKDF::Expend(uint64_t amr)
 byte QKDF::SingleRound(byte &key_material)
 {
 
-    std::string outfilename = Name + ".txt";
-    std::ofstream outfile(outfilename);
+    std::string outfilename = "keyfile/" + Name + ".txt";
+    std::ofstream outfile(outfilename, std::ios::app);
     if (!outfile.is_open())
     {
         // 处理打开文件失败的情况
@@ -229,6 +239,8 @@ byte QKDF::SingleRound(byte &key_material)
     {
         outfile << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << " ";
     }
+    outfile << "\n"
+            << std::endl; //
 
     outfile.close(); // Ensure the file is closed
     return expended;
@@ -300,6 +312,17 @@ void QKDF::Initialized()
     byte nil;
     nil.resize(0);
     Reset(nil, ctx);
+
+    file.close();
+
+    std::string outfilename = "keyfile/" + Name + ".txt";
+    std::ofstream outfile(outfilename);
+    if (!outfile.is_open())
+    {
+        // 处理打开文件失败的情况
+        std::cerr << "Failed to open file: " << outfilename << std::endl;
+    }
+    outfile.close(); // Ensure the file is closed
 }
 
 int GetblockSize(HashAlg alg)
