@@ -1,3 +1,4 @@
+#include "debuglevel.hpp"
 #include "samanagement.hpp"
 #include "packet/packets.hpp"
 #include "server.hpp"
@@ -9,6 +10,8 @@ extern SAManager globalSAManager;
 extern uint32_t LOCAL_QKI_IPADDRESS;
 extern uint32_t REMOTE_QKI_IPADDRESS;
 extern int KM_LISTEN_PORT;
+
+extern int USE_QKDF;
 
 SAManager::SAManager()
     : IPSecSA_number(0) {}
@@ -125,7 +128,8 @@ bool opensession(IPSec_SAData &sadata)
 {
     // 打开会话
     OpenSessionPacket pkt1;
-    pkt1.constructopensessionpacket(LOCAL_QKI_IPADDRESS, REMOTE_QKI_IPADDRESS, sadata.session_id_, sadata.is_inbound_);
+    // 将LOCAL_QKI_IPADDRESS和REMOTE_QKI_IPADDRESS替换成IPsec传递的IP，IPSEc SA和IKE SA一致
+    pkt1.constructopensessionpacket(sadata.sourceip_, sadata.desip_, sadata.session_id_, sadata.is_inbound_);
     send(sadata.KM_fd_, pkt1.getBufferPtr(), pkt1.getBufferSize(), 0);
     if (!reciveconfirmmessage(sadata.KM_fd_))
     {
@@ -140,7 +144,7 @@ bool opensession(IKE_SAData &sadata)
 {
     // 打开会话
     OpenSessionPacket pkt1;
-    pkt1.constructopensessionpacket(LOCAL_QKI_IPADDRESS, REMOTE_QKI_IPADDRESS, sadata.session_id_, !sadata.is_initiator);
+    pkt1.constructopensessionpacket(sadata.sourceip_, sadata.desip_, sadata.session_id_, !sadata.is_initiator);
     send(sadata.KM_fd_, pkt1.getBufferPtr(), pkt1.getBufferSize(), 0);
     if (!reciveconfirmmessage(sadata.KM_fd_))
     {
@@ -153,116 +157,177 @@ bool opensession(IKE_SAData &sadata)
 // SA通过会话向KM索取密钥，另一种模式是自己管理密钥
 bool addKey(IPSec_SAData &sadata)
 {
-    int request_len = sadata.qkdf_.BlockSize; // 每次请求一个mdk
-    // 构造请求密钥包
-    KeyRequestPacket pkt2;
-    pkt2.constructkeyrequestpacket(sadata.session_id_, sadata.request_id, request_len);
-    if (send(sadata.KM_fd_, pkt2.getBufferPtr(), pkt2.getBufferSize(), 0) == -1)
+    const int max_retries = 5; // 设置最大重试次数
+    int retries = 0;
+    int request_len = 0;
+    if (USE_QKDF)
     {
-        perror("send Error");
-        close(sadata.KM_fd_);
-        return false;
-    }
-    sadata.request_id += 1;
-    // 处理密钥返回
-    PacketBase pkt3;
-    // 读取packet header
-    ssize_t bytes_read = read(sadata.KM_fd_, pkt3.getBufferPtr(), BASE_HEADER_SIZE);
-    if (bytes_read <= 0)
-    {
-        perror("read Error");
-        close(sadata.KM_fd_);
-        return false;
-    }
-
-    uint16_t value1, length;
-    std::memcpy(&value1, pkt3.getBufferPtr(), sizeof(uint16_t));
-    std::memcpy(&length, pkt3.getBufferPtr() + sizeof(uint16_t), sizeof(uint16_t));
-
-    // 读取payload
-    bytes_read = read(sadata.KM_fd_, pkt3.getBufferPtr() + BASE_HEADER_SIZE, length);
-    if (bytes_read != length)
-    {
-        perror("Incomplete payload read");
-        close(sadata.KM_fd_);
-        return false;
-    }
-    pkt3.setBufferSize(BASE_HEADER_SIZE + length);
-    std::string getkeyvalue;
-    if (value1 == static_cast<uint16_t>(PacketType::KEYRETURN))
-    {
-        // 带参构造KeyRequestPacket,成功返回mdk字节密钥，插入到buffer末尾
-        KeyRequestPacket pkt4(std::move(pkt3));
-        getkeyvalue.resize(request_len);
-        std::memcpy(&getkeyvalue[0], pkt4.getKeyBufferPtr(), request_len);
-        sadata.keybuffer.insert(sadata.keybuffer.end(), getkeyvalue.begin(), getkeyvalue.end()); // 存入原始密钥
-        // 获取派生材料
-        std::vector<uint8_t> input_key_buf(getkeyvalue.begin(), getkeyvalue.begin() + request_len);
-        byte output = sadata.qkdf_.SingleRound(input_key_buf);                         // 进行派生
-        sadata.keyderive.insert(sadata.keyderive.end(), output.begin(), output.end()); // 插入派生密钥到末尾
-        return true;
+        request_len = sadata.qkdf_.BlockSize; // 每次请求一个mdk
     }
     else
     {
-        // 返回密钥失败，返回错误消息
-        perror("getkey Error");
-        return false;
+        request_len = 512;
     }
+
+    // 重试5次
+    while (retries < max_retries)
+    {
+        // 构造请求密钥包
+        KeyRequestPacket pkt2;
+        pkt2.constructkeyrequestpacket(sadata.session_id_, sadata.request_id, request_len);
+        if (send(sadata.KM_fd_, pkt2.getBufferPtr(), pkt2.getBufferSize(), 0) == -1)
+        {
+            perror("send Error");
+            close(sadata.KM_fd_);
+            return false;
+        }
+        sadata.request_id += 1;
+        // 处理密钥返回
+        PacketBase pkt3;
+        // 读取packet header
+        ssize_t bytes_read = read(sadata.KM_fd_, pkt3.getBufferPtr(), BASE_HEADER_SIZE);
+        if (bytes_read <= 0)
+        {
+            perror("read Error");
+            close(sadata.KM_fd_);
+            return false;
+        }
+
+        uint16_t value1, length;
+        std::memcpy(&value1, pkt3.getBufferPtr(), sizeof(uint16_t));
+        std::memcpy(&length, pkt3.getBufferPtr() + sizeof(uint16_t), sizeof(uint16_t));
+
+        // 读取payload
+        bytes_read = read(sadata.KM_fd_, pkt3.getBufferPtr() + BASE_HEADER_SIZE, length);
+        if (bytes_read != length)
+        {
+            perror("Incomplete payload read");
+            close(sadata.KM_fd_);
+            return false;
+        }
+        pkt3.setBufferSize(BASE_HEADER_SIZE + length);
+        std::string getkeyvalue;
+        if (value1 == static_cast<uint16_t>(PacketType::KEYRETURN))
+        {
+            // 带参构造KeyRequestPacket,成功返回mdk字节密钥，插入到buffer末尾
+            KeyRequestPacket pkt4(std::move(pkt3));
+            getkeyvalue.resize(request_len);
+            std::memcpy(&getkeyvalue[0], pkt4.getKeyBufferPtr(), request_len);
+            if (USE_QKDF)
+            {
+                sadata.keybuffer.insert(sadata.keybuffer.end(), getkeyvalue.begin(), getkeyvalue.end()); // 存入原始密钥
+                // 获取派生材料
+                std::vector<uint8_t> input_key_buf(getkeyvalue.begin(), getkeyvalue.begin() + request_len);
+                // 获取开始时间点
+                auto start = std::chrono::high_resolution_clock::now();
+                byte output = sadata.qkdf_.SingleRound(input_key_buf); // 进行派生
+                if (DEBUG_LEVEL <= 0)
+                {
+                    // 获取结束时间点
+                    auto end = std::chrono::high_resolution_clock::now();
+                    // 计算时间差并转换为微秒
+                    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+                    // 输出时间
+                    std::cout << "SingleRoundderive took " << duration << " microseconds." << std::endl;
+                }
+                sadata.keyderive.insert(sadata.keyderive.end(), output.begin(), output.end()); // 插入派生密钥到末尾
+            }
+            else
+            {
+                sadata.keybuffer.insert(sadata.keybuffer.end(), getkeyvalue.begin(), getkeyvalue.end());
+            }
+
+            return true;
+        }
+
+        if (sadata.is_inbound_ && retries < max_retries)
+        {
+            // 如果是被动端返回密钥失败，可以进行重新尝试
+            usleep(2000);
+            retries++;
+            perror("getIPSecSAkey Error, retrying...");
+            continue;
+        }
+        else
+        {
+            break;
+        }
+    }
+    // 返回密钥失败，返回错误消息
+    perror("getIPSecSAkey Error");
+    return false;
 }
 
 bool addKey(IKE_SAData &sadata)
 {
     int request_len = 512;
-    // 构造请求密钥包
-    KeyRequestPacket pkt2;
-    pkt2.constructkeyrequestpacket(sadata.session_id_, sadata.request_id, request_len);
-    if (send(sadata.KM_fd_, pkt2.getBufferPtr(), pkt2.getBufferSize(), 0) == -1)
-    {
-        perror("send Error");
-        close(sadata.KM_fd_);
-        return false;
-    }
-    sadata.request_id += 1;
-    // 处理密钥返回
-    PacketBase pkt3;
-    // 读取packet header
-    ssize_t bytes_read = read(sadata.KM_fd_, pkt3.getBufferPtr(), BASE_HEADER_SIZE);
-    if (bytes_read <= 0)
-    {
-        perror("read Error");
-        close(sadata.KM_fd_);
-        return false;
-    }
 
-    uint16_t value1, length;
-    std::memcpy(&value1, pkt3.getBufferPtr(), sizeof(uint16_t));
-    std::memcpy(&length, pkt3.getBufferPtr() + sizeof(uint16_t), sizeof(uint16_t));
+    const int max_retries = 5; // 设置最大重试次数
+    int retries = 0;
 
-    // 读取payload
-    bytes_read = read(sadata.KM_fd_, pkt3.getBufferPtr() + BASE_HEADER_SIZE, length);
-    if (bytes_read != length)
+    // 重试5次
+    while (retries < max_retries)
     {
-        perror("Incomplete payload read");
-        close(sadata.KM_fd_);
-        return false;
+        // 构造请求密钥包
+        KeyRequestPacket pkt2;
+        pkt2.constructkeyrequestpacket(sadata.session_id_, sadata.request_id, request_len);
+        if (send(sadata.KM_fd_, pkt2.getBufferPtr(), pkt2.getBufferSize(), 0) == -1)
+        {
+            perror("send Error");
+            close(sadata.KM_fd_);
+            return false;
+        }
+        sadata.request_id += 1;
+        // 处理密钥返回
+        PacketBase pkt3;
+        // 读取packet header
+        ssize_t bytes_read = read(sadata.KM_fd_, pkt3.getBufferPtr(), BASE_HEADER_SIZE);
+        if (bytes_read <= 0)
+        {
+            perror("read Error");
+            close(sadata.KM_fd_);
+            return false;
+        }
+
+        uint16_t value1, length;
+        std::memcpy(&value1, pkt3.getBufferPtr(), sizeof(uint16_t));
+        std::memcpy(&length, pkt3.getBufferPtr() + sizeof(uint16_t), sizeof(uint16_t));
+
+        // 读取payload
+        bytes_read = read(sadata.KM_fd_, pkt3.getBufferPtr() + BASE_HEADER_SIZE, length);
+        if (bytes_read != length)
+        {
+            perror("Incomplete payload read");
+            close(sadata.KM_fd_);
+            return false;
+        }
+        pkt3.setBufferSize(BASE_HEADER_SIZE + length);
+        std::string getkeyvalue;
+        if (value1 == static_cast<uint16_t>(PacketType::KEYRETURN))
+        {
+            // 带参构造KeyRequestPacket,成功返回512字节密钥，插入到buffer末尾
+            KeyRequestPacket pkt4(std::move(pkt3));
+            getkeyvalue.resize(request_len);
+            std::memcpy(&getkeyvalue[0], pkt4.getKeyBufferPtr(), request_len);
+            sadata.keybuffer.insert(sadata.keybuffer.end(), getkeyvalue.begin(), getkeyvalue.end());
+            return true;
+        }
+        if (!sadata.is_initiator && retries < max_retries)
+        {
+            // 如果是被动端返回密钥失败，可以进行重新尝试
+            usleep(2000);
+            retries++;
+            perror("getIKESAkey Error, retrying...");
+            continue;
+        }
+        else
+        {
+            break;
+        }
     }
-    pkt3.setBufferSize(BASE_HEADER_SIZE + length);
-    std::string getkeyvalue;
-    if (value1 == static_cast<uint16_t>(PacketType::KEYRETURN))
-    {
-        // 带参构造KeyRequestPacket,成功返回512字节密钥，插入到buffer末尾
-        KeyRequestPacket pkt4(std::move(pkt3));
-        getkeyvalue.resize(request_len);
-        std::memcpy(&getkeyvalue[0], pkt4.getKeyBufferPtr(), request_len);
-        sadata.keybuffer.insert(sadata.keybuffer.end(), getkeyvalue.begin(), getkeyvalue.end());
-        return true;
-    }
-    else
-    {
-        // 返回密钥失败，返回错误消息
-        perror("getkey Error");
-        return false;
-    }
+    // 返回密钥失败，返回错误消息
+    perror("getIKESAkey Error");
+    return false;
 }
 
 // SA向KM关闭一个会话
@@ -300,8 +365,11 @@ bool SAManager::registerIPSecSA(uint32_t sourceip, uint32_t desip, uint32_t spi,
     newSAData.desip_ = desip;
     newSAData.spi_ = spi;
     newSAData.is_inbound_ = is_inbound;
-    newSAData.qkdf_.SetName(std::to_string(spi));
-    newSAData.qkdf_.Initialized();
+    if (USE_QKDF)
+    {
+        newSAData.qkdf_.SetName(std::to_string(spi));
+        newSAData.qkdf_.Initialized();
+    }
     newSAData.session_id_ = globalSAManager.mapIPSecSpiToSessionId(spi); // 调用成员函数
     if (!connect_KM(newSAData))
     {
@@ -329,21 +397,49 @@ std::string SAManager::getIPSecKey(uint32_t spi, uint32_t seq, uint16_t request_
     if (it != IPSec_SACache_.end())
     {
         // 返回找到的密钥
-        int useful_size = it->second.keyderive.size();
+        int useful_size = 0;
+
+        if (USE_QKDF)
+        {
+            useful_size = it->second.keyderive.size();
+        }
+        else
+        {
+            useful_size = it->second.keybuffer.size() - it->second.index_;
+        }
+
         while (useful_size < request_len)
         {
             // 补充密钥
             if (!addKey(it->second))
             {
+                // 如果是加密方，补充密钥失败说明KM密钥不足，不尝试重新获取密钥
+                // 如果是解密方补充密钥失败，有可能是密钥不足，也有可能是密钥未同步过去，需要循环多次尝试重新请求
                 // 错误处理
                 std::cerr << "add ipsecsa key failed." << std::endl;
                 return "";
             }
-            useful_size = it->second.keyderive.size();
+            if (USE_QKDF)
+            {
+                useful_size = it->second.keyderive.size();
+            }
+            else
+            {
+                useful_size = it->second.keybuffer.size() - it->second.index_;
+            }
         }
-        std::string returnkeyvalue(it->second.keyderive.begin(), it->second.keyderive.begin() + request_len);
-        it->second.keyderive.erase(it->second.keyderive.begin(), it->second.keyderive.begin() + request_len); // 用后删除
-        return returnkeyvalue;
+        if (USE_QKDF)
+        {
+            std::string returnkeyvalue(it->second.keyderive.begin(), it->second.keyderive.begin() + request_len);
+            it->second.keyderive.erase(it->second.keyderive.begin(), it->second.keyderive.begin() + request_len); // 用后删除
+            return returnkeyvalue;
+        }
+        else
+        {
+            std::string returnkeyvalue(it->second.keybuffer.begin() + it->second.index_, it->second.keybuffer.begin() + it->second.index_ + request_len);
+            it->second.index_ += request_len;
+            return returnkeyvalue;
+        }
     }
     return ""; // 如果未找到spi，返回空字符串
 }
@@ -354,7 +450,7 @@ bool SAManager::destoryIPSecSA(uint32_t spi)
     auto it = IPSec_SACache_.find(spi);
     if (it != IPSec_SACache_.end())
     {
-        closesession(it->second); // TODO:首先通知关闭与KM的会话
+        closesession(it->second); // 首先通知关闭与KM的会话
         IPSec_SACache_.erase(it);
         --IPSecSA_number;
         std::cout << "destoryIPSecSA success!spi:" << spi << std::endl;
@@ -439,7 +535,7 @@ bool SAManager::destoryIKESA(uint64_t spiI, uint64_t spiR)
     auto it = IKE_SACache_.find(Spitemple);
     if (it != IKE_SACache_.end())
     {
-        closesession(it->second); // TODO:首先通知关闭与KM的会话
+        closesession(it->second); // 首先通知关闭与KM的会话
         IKE_SACache_.erase(it);
         std::cout << "destoryIKESA success!spi:" << spiI << " and " << spiR << std::endl;
         return true;

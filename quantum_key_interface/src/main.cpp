@@ -16,6 +16,7 @@ uint32_t LOCAL_QKI_IPADDRESS = 0;
 uint32_t REMOTE_QKI_IPADDRESS = 0;
 const int LISTEN_PORT_QKI = 50001;
 int KM_LISTEN_PORT = 50000;
+int USE_QKDF = 1;
 
 int main(int argc, char *argv[])
 {

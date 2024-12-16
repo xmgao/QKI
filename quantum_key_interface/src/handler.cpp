@@ -3,6 +3,8 @@
 #include "debuglevel.hpp"
 #include "handler.hpp"
 #include "server.hpp"
+#include <endian.h> // 或使用 <byteswap.h> 根据需求
+#include <chrono>
 
 extern SAManager globalSAManager;
 
@@ -17,6 +19,8 @@ void sendConfirmMessage(int fd, ErrorCode errorCode)
 // 处理IPSECSA注册请求
 void handleRegisterIPSECSAPacket(int fd, PacketBase &pkt1)
 {
+    // 获取开始时间点
+    auto start = std::chrono::high_resolution_clock::now();
     uint16_t length;
     std::memcpy(&length, pkt1.getBufferPtr() + sizeof(uint16_t), sizeof(uint16_t));
     // 读取payload
@@ -27,7 +31,7 @@ void handleRegisterIPSECSAPacket(int fd, PacketBase &pkt1)
     RegisterIPSECSAPacket pkt2(std::move(pkt1));
     registeripsecsahdr *hdr = pkt2.getRegisterIPSECSAPacketHeader();
 
-    if (DEBUG_LEVEL == 1)
+    if (DEBUG_LEVEL <= 1)
     {
         std::cout << "Received RegisterIPSECSA packet: "
                   << " source_ip: " << uint32ToIpString(ntohl(hdr->registeripsecsa_source))
@@ -38,11 +42,23 @@ void handleRegisterIPSECSAPacket(int fd, PacketBase &pkt1)
     }
     // 暂时不作回复
     globalSAManager.registerIPSecSA(ntohl(hdr->registeripsecsa_source), ntohl(hdr->registeripsecsa_destination), hdr->registeripsecsa_spi, hdr->is_inbound);
+
+    if (DEBUG_LEVEL <= 0)
+    {
+        // 获取结束时间点
+        auto end = std::chrono::high_resolution_clock::now();
+        // 计算时间差并转换为微秒
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        // 输出时间
+        std::cout << "handleRegisterIPSECSAPacket took " << duration << " microseconds." << std::endl;
+    }
 }
 
 // 处理IPSECSA获取密钥
 void handleIPSECSAKeyRequestPacket(int fd, PacketBase &pkt1)
 {
+    // 获取开始时间点
+    auto start = std::chrono::high_resolution_clock::now();
     uint16_t length;
     std::memcpy(&length, pkt1.getBufferPtr() + sizeof(uint16_t), sizeof(uint16_t));
     // 读取payload
@@ -53,7 +69,7 @@ void handleIPSECSAKeyRequestPacket(int fd, PacketBase &pkt1)
     IPSECSAKeyRequestPacket pkt2(std::move(pkt1));
     ipsecsakeyrequesthdr *hdr = pkt2.getKeyRequestHeaderPtr();
 
-    if (DEBUG_LEVEL == 1)
+    if (DEBUG_LEVEL <= 1)
     {
         std::cout << "Received IPSECSAKEYREQUEST packet: "
                   << " spi: " << std::hex << std::setw(8) << std::setfill('0') << ntohl(hdr->keyreq_spi) << std::dec // 恢复十进制格式
@@ -68,7 +84,7 @@ void handleIPSECSAKeyRequestPacket(int fd, PacketBase &pkt1)
         std::cerr << "Failed to get key!" << std::endl;
         return;
     }
-    if (DEBUG_LEVEL == 1)
+    if (DEBUG_LEVEL <= 1)
     {
         // 打印密钥
         for (uint8_t byte : getkeyvalue)
@@ -82,11 +98,22 @@ void handleIPSECSAKeyRequestPacket(int fd, PacketBase &pkt1)
     IPSECSAKeyRequestPacket pkt3;
     pkt3.ConstructIPSECSAkeyReturnPacket(hdr->keyreq_spi, hdr->keyreq_seq, hdr->keyreq_reqlen, getkeyvalue);
     send(fd, pkt3.getBufferPtr(), pkt3.getBufferSize(), 0);
+     if (DEBUG_LEVEL <= 0)
+    {
+        // 获取结束时间点
+        auto end = std::chrono::high_resolution_clock::now();
+        // 计算时间差并转换为微秒
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        // 输出时间
+        std::cout << "handleIPSECSAKeyRequestPacket took " << duration << " microseconds." << std::endl;
+    }
 }
 
 // 销毁IPSECSA
 void handleDestroyIPSECSAPacket(int fd, PacketBase &pkt1)
 {
+    // 获取开始时间点
+    auto start = std::chrono::high_resolution_clock::now();
     uint16_t length;
     std::memcpy(&length, pkt1.getBufferPtr() + sizeof(uint16_t), sizeof(uint16_t));
     // 读取payload
@@ -96,7 +123,7 @@ void handleDestroyIPSECSAPacket(int fd, PacketBase &pkt1)
     RegisterIPSECSAPacket pkt2(std::move(pkt1));
     registeripsecsahdr *hdr = pkt2.getRegisterIPSECSAPacketHeader();
 
-    if (DEBUG_LEVEL == 1)
+    if (DEBUG_LEVEL <= 1)
     {
         std::cout << "Received DestoryIPSECSA packet: "
                   << " source_ip: " << uint32ToIpString(ntohl(hdr->registeripsecsa_source))
@@ -107,10 +134,21 @@ void handleDestroyIPSECSAPacket(int fd, PacketBase &pkt1)
     }
     globalSAManager.destoryIPSecSA(hdr->registeripsecsa_spi);
     close(fd);
+     if (DEBUG_LEVEL <= 0)
+    {
+        // 获取结束时间点
+        auto end = std::chrono::high_resolution_clock::now();
+        // 计算时间差并转换为微秒
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        // 输出时间
+        std::cout << "handleDestroyIPSECSAPacket took " << duration << " microseconds." << std::endl;
+    }
 }
 
 void handleRegisterIKESAPacket(int fd, PacketBase &pkt1)
 {
+    // 获取开始时间点
+    auto start = std::chrono::high_resolution_clock::now();
     uint16_t length;
     std::memcpy(&length, pkt1.getBufferPtr() + sizeof(uint16_t), sizeof(uint16_t));
     // 读取payload
@@ -121,20 +159,31 @@ void handleRegisterIKESAPacket(int fd, PacketBase &pkt1)
     RegisterIKESAPacket pkt2(std::move(pkt1));
     registerikesahdr *hdr = pkt2.getRegisterIKESAPacketHeaderPtr();
 
-    if (DEBUG_LEVEL == 1)
+    if (DEBUG_LEVEL <= 1)
     {
         std::cout << "Received RegisterIKESA packet: "
                   << " source_ip: " << uint32ToIpString(ntohl(hdr->registerikesa_source))
                   << " dest_ip: " << uint32ToIpString(ntohl(hdr->registerikesa_destination))
-                  << " spiI: " << std::hex << std::setw(16) << ntohl(hdr->registerikesa_spiI) << std::dec // 恢复十进制格式
-                  << " spiR: " << std::hex << std::setw(16) << ntohl(hdr->registerikesa_spiR) << std::dec // 恢复十进制格式
+                  << " spiI: " << std::hex << std::setw(16) << be64toh(hdr->registerikesa_spiI) << std::dec // 恢复十进制格式
+                  << " spiR: " << std::hex << std::setw(16) << be64toh(hdr->registerikesa_spiR) << std::dec // 恢复十进制格式
                   << std::endl;
     }
     globalSAManager.registerIKESA(ntohl(hdr->registerikesa_source), ntohl(hdr->registerikesa_destination), hdr->registerikesa_spiI, hdr->registerikesa_spiR);
+     if (DEBUG_LEVEL <= 0)
+    {
+        // 获取结束时间点
+        auto end = std::chrono::high_resolution_clock::now();
+        // 计算时间差并转换为微秒
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        // 输出时间
+        std::cout << "handleRegisterIKESAPacket took " << duration << " microseconds." << std::endl;
+    }
 }
 
 void handleIKESAKeyRequestPacket(int fd, PacketBase &pkt1)
 {
+    // 获取开始时间点
+    auto start = std::chrono::high_resolution_clock::now();
     uint16_t length;
     std::memcpy(&length, pkt1.getBufferPtr() + sizeof(uint16_t), sizeof(uint16_t));
     // 读取payload
@@ -144,11 +193,11 @@ void handleIKESAKeyRequestPacket(int fd, PacketBase &pkt1)
     // 带参构造KeyRequestPacket
     IKESAKeyRequestPacket pkt2(std::move(pkt1));
     ikesakeyrequesthdr *hdr = pkt2.getIKESAKeyRequestHdrPtr();
-    if (DEBUG_LEVEL == 1)
+    if (DEBUG_LEVEL <= 1)
     {
-        std::cout << "Received IKECSAKEYREQUEST packet: "
-                  << " spiI: " << std::hex << std::setw(16) << ntohl(hdr->keyreq_spiI) << std::dec // 恢复十进制格式
-                  << " spiR: " << std::hex << std::setw(16) << ntohl(hdr->keyreq_spiR) << std::dec // 恢复十进制格式
+        std::cout << "Received IKESAKEYREQUEST packet: "
+                  << " spiI: " << std::hex << std::setw(16) << be64toh(hdr->keyreq_spiI) << std::dec // 恢复十进制格式
+                  << " spiR: " << std::hex << std::setw(16) << be64toh(hdr->keyreq_spiR) << std::dec // 恢复十进制格式
                   << " seq: " << hdr->keyreq_seq
                   << " request_len: " << hdr->keyreq_reqlen
                   << std::endl;
@@ -160,7 +209,7 @@ void handleIKESAKeyRequestPacket(int fd, PacketBase &pkt1)
         std::cerr << "Failed to get key!" << std::endl;
         return;
     }
-    if (DEBUG_LEVEL == 1)
+    if (DEBUG_LEVEL <= 1)
     {
         // 打印密钥
         for (uint8_t byte : getkeyvalue)
@@ -173,10 +222,21 @@ void handleIKESAKeyRequestPacket(int fd, PacketBase &pkt1)
     IKESAKeyRequestPacket pkt3;
     pkt3.ConstructIKESAkeyReturnPacket(hdr->keyreq_spiI, hdr->keyreq_spiR, hdr->keyreq_seq, hdr->keyreq_reqlen, getkeyvalue);
     send(fd, pkt3.getBufferPtr(), pkt3.getBufferSize(), 0);
+     if (DEBUG_LEVEL <= 0)
+    {
+        // 获取结束时间点
+        auto end = std::chrono::high_resolution_clock::now();
+        // 计算时间差并转换为微秒
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        // 输出时间
+        std::cout << "handleIKESAKeyRequestPacket took " << duration << " microseconds." << std::endl;
+    }
 }
 
 void handleDestroyIKESAPacket(int fd, PacketBase &pkt1)
 {
+    // 获取开始时间点
+    auto start = std::chrono::high_resolution_clock::now();
     uint16_t length;
     std::memcpy(&length, pkt1.getBufferPtr() + sizeof(uint16_t), sizeof(uint16_t));
     // 读取payload
@@ -185,17 +245,26 @@ void handleDestroyIKESAPacket(int fd, PacketBase &pkt1)
     // 带参构造DestoryPacket
     RegisterIKESAPacket pkt2(std::move(pkt1));
     registerikesahdr *hdr = pkt2.getRegisterIKESAPacketHeaderPtr();
-    if (DEBUG_LEVEL == 1)
+    if (DEBUG_LEVEL <= 1)
     {
         std::cout << "Received DestoryIKESA packet: "
                   << " source_ip: " << uint32ToIpString(ntohl(hdr->registerikesa_source))
                   << " dest_ip: " << uint32ToIpString(ntohl(hdr->registerikesa_destination))
-                  << " spiI: " << std::hex << std::setw(16) << ntohl(hdr->registerikesa_spiI) << std::dec // 恢复十进制格式
-                  << " spiR: " << std::hex << std::setw(16) << ntohl(hdr->registerikesa_spiR) << std::dec // 恢复十进制格式
+                  << " spiI: " << std::hex << std::setw(16) << be64toh(hdr->registerikesa_spiI) << std::dec // 恢复十进制格式
+                  << " spiR: " << std::hex << std::setw(16) << be64toh(hdr->registerikesa_spiR) << std::dec // 恢复十进制格式
                   << std::endl;
     }
     globalSAManager.destoryIKESA(hdr->registerikesa_spiI, hdr->registerikesa_spiR);
     close(fd);
+     if (DEBUG_LEVEL <= 0)
+    {
+        // 获取结束时间点
+        auto end = std::chrono::high_resolution_clock::now();
+        // 计算时间差并转换为微秒
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        // 输出时间
+        std::cout << "handleDestroyIKESAPacket took " << duration << " microseconds." << std::endl;
+    }
 }
 
 // 处理UNKOWN_TYPE，假设Type错误，Length正确
