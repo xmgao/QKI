@@ -13,7 +13,6 @@ SAManager globalSAManager;
 MessageHandlerRegistry global_registry;
 
 uint32_t LOCAL_QKI_IPADDRESS = 0;
-uint32_t REMOTE_QKI_IPADDRESS = 0;
 const int LISTEN_PORT_QKI = 50001;
 int KM_LISTEN_PORT = 50000;
 int USE_QKDF = 1;
@@ -21,16 +20,14 @@ int USE_QKDF = 1;
 int main(int argc, char *argv[])
 {
     system("rm -rf keyfile/*");
-    if (argc != 3)
+    if (argc != 2)
     {
-        std::cerr << "Usage: " << argv[0] << " <local_qki IP address> <remote_qki IP address>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <local_qki IP address>" << std::endl;
         return 1;
     }
 
     std::string local_qki_ipAddress = argv[1];
-    std::string remote_qki_ipAddress = argv[2];
     LOCAL_QKI_IPADDRESS = IpStringTouint32(local_qki_ipAddress);
-    REMOTE_QKI_IPADDRESS = IpStringTouint32(remote_qki_ipAddress);
 
     std::cout << "begin register!" << std::endl;
     global_registry.registerHandler(PacketType::REGISTERIKESA, handleRegisterIKESAPacket);

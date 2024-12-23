@@ -47,7 +47,7 @@ struct IKE_SAData
     uint32_t session_id_;
     int index_ = 0;
     int KM_fd_ = -1;
-    int request_id = 1;
+    int request_id = 0;
     std::vector<uint8_t> keybuffer; // ‘≠ º√‹‘øª∫¥Ê
 };
 
@@ -62,7 +62,7 @@ struct IPSec_SAData
     uint32_t session_id_;
     int index_ = 0;
     int KM_fd_ = -1;
-    int request_id = 1;
+    int request_id = 0;
     std::vector<uint8_t> keybuffer; // ‘≠ º√‹‘øª∫¥Ê
     QKDF qkdf_;
     std::vector<uint8_t> keyderive; // √‹‘ø≈……˙ª∫¥Ê

@@ -8,7 +8,6 @@
 // 声明全局变量，但不定义
 extern SAManager globalSAManager;
 extern uint32_t LOCAL_QKI_IPADDRESS;
-extern uint32_t REMOTE_QKI_IPADDRESS;
 extern int KM_LISTEN_PORT;
 
 extern int USE_QKDF;
@@ -168,7 +167,7 @@ bool addKey(IPSec_SAData &sadata)
     {
         request_len = 512;
     }
-
+    sadata.request_id += 1; // 每次请求的id递增
     // 重试5次
     while (retries < max_retries)
     {
@@ -181,7 +180,6 @@ bool addKey(IPSec_SAData &sadata)
             close(sadata.KM_fd_);
             return false;
         }
-        sadata.request_id += 1;
         // 处理密钥返回
         PacketBase pkt3;
         // 读取packet header
@@ -245,7 +243,7 @@ bool addKey(IPSec_SAData &sadata)
             // 如果是被动端返回密钥失败，可以进行重新尝试
             usleep(2000);
             retries++;
-            perror("getIPSecSAkey Error, retrying...");
+            std::cerr << "getIPSecSAkey Error, retrying..." << std::endl;
             continue;
         }
         else
@@ -254,7 +252,7 @@ bool addKey(IPSec_SAData &sadata)
         }
     }
     // 返回密钥失败，返回错误消息
-    perror("getIPSecSAkey Error");
+    std::cerr << "getIPSecSAkey Error" << std::endl;
     return false;
 }
 
@@ -264,7 +262,7 @@ bool addKey(IKE_SAData &sadata)
 
     const int max_retries = 5; // 设置最大重试次数
     int retries = 0;
-
+     sadata.request_id += 1; // 每次请求的id递增
     // 重试5次
     while (retries < max_retries)
     {
@@ -277,7 +275,6 @@ bool addKey(IKE_SAData &sadata)
             close(sadata.KM_fd_);
             return false;
         }
-        sadata.request_id += 1;
         // 处理密钥返回
         PacketBase pkt3;
         // 读取packet header
@@ -317,7 +314,7 @@ bool addKey(IKE_SAData &sadata)
             // 如果是被动端返回密钥失败，可以进行重新尝试
             usleep(2000);
             retries++;
-            perror("getIKESAkey Error, retrying...");
+            std::cerr << "getIKESAkey Error, retrying..." << std::endl;
             continue;
         }
         else
@@ -326,7 +323,7 @@ bool addKey(IKE_SAData &sadata)
         }
     }
     // 返回密钥失败，返回错误消息
-    perror("getIKESAkey Error");
+    std::cerr << "getIKESAkey Error" << std::endl;
     return false;
 }
 
@@ -517,7 +514,7 @@ std::string SAManager::getIKESAKey(uint64_t spiI, uint64_t spiR, uint32_t seq, u
             if (!addKey(it->second))
             {
                 // 错误处理
-                std::cerr << "add ikecsa key failed." << std::endl;
+                std::cerr << "add ikesa key failed." << std::endl;
                 return "";
             }
             useful_size = it->second.keybuffer.size() - it->second.index_;

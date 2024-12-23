@@ -1,4 +1,5 @@
 #include "qkdf/qkdf.hpp"
+#include "debuglevel.hpp"
 
 const int CounterPayloadSize = 8;
 
@@ -204,16 +205,16 @@ byte QKDF::Expend(uint64_t amr)
 byte QKDF::SingleRound(byte &key_material)
 {
 
-    std::string outfilename = "keyfile/" + Name + ".txt";
-    std::ofstream outfile(outfilename, std::ios::app);
-    if (!outfile.is_open())
-    {
-        // 处理打开文件失败的情况
-        std::cerr << "Failed to open file: " << outfilename << std::endl;
-    }
+    // std::string outfilename = "keyfile/" + Name + ".txt";
+    // std::ofstream outfile(outfilename, std::ios::app);
+    // if (!outfile.is_open())
+    // {
+    //     // 处理打开文件失败的情况
+    //     std::cerr << "Failed to open file: " << outfilename << std::endl;
+    // }
 
     this->Round += 1;
-    outfile << "round " << this->Round << "\textract key " << key_material.size() << std::endl; //
+    // outfile << "round " << this->Round << "\textract key " << key_material.size() << std::endl; //
 
     // Step 1: Extract
     Extract(key_material);
@@ -221,28 +222,28 @@ byte QKDF::SingleRound(byte &key_material)
     // Step 2: Decide expand ratio
     uint64_t secure_mr = SecureMR(key_material.size());
     uint64_t actual_mr = std::min(this->MR, secure_mr); // 两个派生倍率取最小
-    outfile << "mr " << this->MR << "\tsmr " << secure_mr << "\tamr " << actual_mr << "\tklen " << key_material.size() << std::endl;
+    // outfile << "mr " << this->MR << "\tsmr " << secure_mr << "\tamr " << actual_mr << "\tklen " << key_material.size() << std::endl;
 
     // Step 3: Expend
     byte expended = Expend(actual_mr);
 
     // Step 4: Truncate
     uint64_t required = static_cast<uint64_t>(std::floor(static_cast<double>(this->Rate) * this->Period.count() / 1000.0)); // seconds
-    outfile << "truncate key " << "\trequire " << required << "\tgenerate " << expended.size() << std::endl;
+    // outfile << "truncate key " << "\trequire " << required << "\tgenerate " << expended.size() << std::endl;
     if (required < (uint64_t)expended.size())
     {
         expended.resize(required);
     }
 
-    outfile << "expended key material-len " << expended.size() << std::endl;
-    for (uint8_t byte : expended)
-    {
-        outfile << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << " ";
-    }
-    outfile << "\n"
-            << std::endl; //
+    // outfile << "expended key material-len " << expended.size() << std::endl;
+    // for (uint8_t byte : expended)
+    // {
+    //     outfile << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << " ";
+    // }
+    // outfile << "\n"
+    //         << std::endl; //
 
-    outfile.close(); // Ensure the file is closed
+    // outfile.close(); // Ensure the file is closed
     return expended;
 }
 
