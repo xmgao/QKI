@@ -22,10 +22,8 @@ uint32_t *ConfirmMessagePacket::geterrortypePtr()
 
 void ConfirmMessagePacket::constructConfirmMessagePacket(uint32_t errortype)
 {
-    uint16_t intvalue = static_cast<uint16_t>(PacketType::CONFIRMMESSAGE);
-    std::memcpy(this->getBufferPtr(), &intvalue, sizeof(uint16_t));
-    uint16_t length = CONFIRMMESSAGE_HEADER_SIZE;
-    std::memcpy(this->getBufferPtr() + sizeof(uint16_t), &length, sizeof(uint16_t));
+    header_->packet_type = static_cast<uint16_t>(PacketType::CONFIRMMESSAGE);
+    header_->packet_length = CONFIRMMESSAGE_HEADER_SIZE;
     this->setBufferSize(BASE_HEADER_SIZE + CONFIRMMESSAGE_HEADER_SIZE);
     *this->error_type_ptr_ = errortype;
 }

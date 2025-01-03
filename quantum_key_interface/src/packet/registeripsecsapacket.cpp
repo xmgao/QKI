@@ -17,7 +17,7 @@ registeripsecsahdr *RegisterIPSECSAPacket::getRegisterIPSECSAPacketHeader()
     return registeripsecsa_header_ptr;
 }
 
-void RegisterIPSECSAPacket::ConstructRegisterIPSECSAPacket(uint32_t sourceip_, uint32_t desip_, uint32_t spi, bool is_inbound)
+void RegisterIPSECSAPacket::ConstructRegisterIPSECSAPacket(uint32_t sourceip_, uint32_t desip_, uint32_t spi, uint8_t is_inbound, uint8_t is_otpalg)
 {
     header_->packet_type = static_cast<uint16_t>(PacketType::REGISTERIPSECSA);
     header_->packet_length = REGISTERIPSECSA_HEADER_SIZE;
@@ -25,10 +25,11 @@ void RegisterIPSECSAPacket::ConstructRegisterIPSECSAPacket(uint32_t sourceip_, u
     registeripsecsa_header_ptr->registeripsecsa_destination = desip_;
     registeripsecsa_header_ptr->registeripsecsa_spi = spi;
     registeripsecsa_header_ptr->is_inbound = is_inbound;
+    registeripsecsa_header_ptr->is_otpalg = is_otpalg;
     this->setBufferSize(BASE_HEADER_SIZE + REGISTERIPSECSA_HEADER_SIZE);
 }
 
-void RegisterIPSECSAPacket::ConstructDestoryIPSECSAPacket(uint32_t sourceip_, uint32_t desip_, uint32_t spi, bool is_inbound)
+void RegisterIPSECSAPacket::ConstructDestoryIPSECSAPacket(uint32_t sourceip_, uint32_t desip_, uint32_t spi, uint8_t is_inbound, uint8_t is_otpalg)
 {
     header_->packet_type = static_cast<uint16_t>(PacketType::DESTORYIPSECSA);
     header_->packet_length = REGISTERIPSECSA_HEADER_SIZE;
@@ -36,5 +37,6 @@ void RegisterIPSECSAPacket::ConstructDestoryIPSECSAPacket(uint32_t sourceip_, ui
     registeripsecsa_header_ptr->registeripsecsa_destination = desip_;
     registeripsecsa_header_ptr->registeripsecsa_spi = spi;
     registeripsecsa_header_ptr->is_inbound = is_inbound;
+    registeripsecsa_header_ptr->is_otpalg = is_otpalg;
     this->setBufferSize(BASE_HEADER_SIZE + REGISTERIPSECSA_HEADER_SIZE);
 }

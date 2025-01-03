@@ -15,7 +15,7 @@
 #include <thread>
 #include <chrono>
 
-//./apppassive 192.168.8.154 192.168.8.182
+//./apppassive 192.168.8.184 192.168.8.126
 
 const int QKI_LISTEN_PORT = 50001; // QKI监听端口
 const int APP_LISTEN_PORT = 50002; // APP监听端口
@@ -126,8 +126,8 @@ void EncthreadFunction()
     // 后续的处理逻辑
 
     // 发送数据包
-    uint32_t IPPROACTIVE = IpStringTouint32(proactiveAPP_ipAddress);
-    uint32_t IPPASSIVE = IpStringTouint32(passiveAPP_ipAddress);
+    uint32_t IPPROACTIVE = htonl(IpStringTouint32(proactiveAPP_ipAddress));
+    uint32_t IPPASSIVE = htonl(IpStringTouint32(passiveAPP_ipAddress));
 
     int conn_QKI_fd = connectToServer(QKI_IP_ADDRESS, QKI_LISTEN_PORT);
     if (conn_QKI_fd <= 0)
@@ -137,7 +137,7 @@ void EncthreadFunction()
 
     RegisterIPSECSAPacket ipsecsa1pkt;
 
-    ipsecsa1pkt.ConstructRegisterIPSECSAPacket(IPPASSIVE, IPPROACTIVE, spi_o, false);
+    ipsecsa1pkt.ConstructRegisterIPSECSAPacket(IPPASSIVE, IPPROACTIVE, spi_o, false, true);
     send(conn_QKI_fd, ipsecsa1pkt.getBufferPtr(), ipsecsa1pkt.getBufferSize(), 0);
 
     uint32_t request_id = 1;
@@ -227,7 +227,7 @@ void EncthreadFunction()
 
     // 关闭IPSECSA
     RegisterIPSECSAPacket closepkt2;
-    closepkt2.ConstructDestoryIPSECSAPacket(IPPASSIVE, IPPROACTIVE, spi_o, false);
+    closepkt2.ConstructDestoryIPSECSAPacket(IPPASSIVE, IPPROACTIVE, spi_o, false, true);
     send(conn_QKI_fd, closepkt2.getBufferPtr(), closepkt2.getBufferSize(), 0);
 }
 
@@ -235,8 +235,8 @@ void EncthreadFunction()
 void DecthreadFunction()
 {
 
-    uint32_t IPPROACTIVE = IpStringTouint32(proactiveAPP_ipAddress);
-    uint32_t IPPASSIVE = IpStringTouint32(passiveAPP_ipAddress);
+    uint32_t IPPROACTIVE = htonl(IpStringTouint32(proactiveAPP_ipAddress));
+    uint32_t IPPASSIVE = htonl(IpStringTouint32(passiveAPP_ipAddress));
 
     int conn_QKI_fd = connectToServer(QKI_IP_ADDRESS, QKI_LISTEN_PORT);
     if (conn_QKI_fd <= 0)
@@ -245,7 +245,7 @@ void DecthreadFunction()
     }
 
     RegisterIPSECSAPacket ipsecsa2pkt;
-    ipsecsa2pkt.ConstructRegisterIPSECSAPacket(IPPROACTIVE, IPPASSIVE, spi_i, true);
+    ipsecsa2pkt.ConstructRegisterIPSECSAPacket(IPPROACTIVE, IPPASSIVE, spi_i, true, true);
     send(conn_QKI_fd, ipsecsa2pkt.getBufferPtr(), ipsecsa2pkt.getBufferSize(), 0);
 
     // 监听主动端APP连接
@@ -385,7 +385,7 @@ void DecthreadFunction()
     }
     close(conn_proactiveAPP_fd);
     RegisterIPSECSAPacket closepkt1;
-    closepkt1.ConstructDestoryIPSECSAPacket(IPPROACTIVE, IPPASSIVE, spi_i, true);
+    closepkt1.ConstructDestoryIPSECSAPacket(IPPROACTIVE, IPPASSIVE, spi_i, true, true);
     send(conn_QKI_fd, closepkt1.getBufferPtr(), closepkt1.getBufferSize(), 0);
 }
 
@@ -429,8 +429,8 @@ int main(int argc, char *argv[])
 
     // 打开会话
     RegisterIKESAPacket pkt1;
-    uint32_t sourceip = IpStringTouint32(proactiveAPP_ipAddress);
-    uint32_t desip = IpStringTouint32(passiveAPP_ipAddress);
+    uint32_t sourceip = htonl(IpStringTouint32(proactiveAPP_ipAddress));
+    uint32_t desip = htonl(IpStringTouint32(passiveAPP_ipAddress));
     uint64_t spiI = 5344634845;
     uint64_t spiR = 9875983014;
     pkt1.ConstructRegisterIKESAPacket(sourceip, desip, spiI, spiR);

@@ -7,10 +7,15 @@
 #include <iomanip>
 #include <stdexcept>
 #include <unordered_map>
+#include <unordered_set>
 #include <cstdint>
 #include <vector>
 #include <queue>
+#include <array>    // std::array
 #include "qkdf/qkdf.hpp"
+
+#define OTP_KEY_UNIT (1480 + 32)
+#define NUM_BLOCK 1024
 
 // 自定义结构来表示 128 位的 SPI
 struct IKE_SPI
@@ -51,6 +56,15 @@ struct IKE_SAData
     std::vector<uint8_t> keybuffer; // 原始密钥缓存
 };
 
+
+struct OTPALG_SAData
+{
+    //按序存储每个esp数据包的序号
+    uint32_t seq_ = 1;
+    // 创建一个unordered_map以存储每个分段
+    std::unordered_map<uint32_t, std::array<uint8_t, OTP_KEY_UNIT>> otpkey_map;
+};
+
 struct IPSec_SAData
 {
     uint32_t spi_;
@@ -58,14 +72,18 @@ struct IPSec_SAData
     uint32_t desip_;
     // 标识是入站SA还是出站SA,true如果是入站SA
     bool is_inbound_;
+    // 标识是使用otp还是不使用otp
+    bool is_otpalg_ = false;
+    // 标识是使用qkdf还是不使用
+    bool use_qkdf_ = false;
     // IPSecSA对应的会话ID
     uint32_t session_id_;
-    int index_ = 0;
     int KM_fd_ = -1;
     int request_id = 0;
     std::vector<uint8_t> keybuffer; // 原始密钥缓存
-    QKDF qkdf_;
+    QKDF qkdf_;                     // QKDF结构体
     std::vector<uint8_t> keyderive; // 密钥派生缓存
+    OTPALG_SAData otpdata_;     //于OTP有关的数据结构
 };
 
 class SAManager
@@ -78,11 +96,11 @@ public:
         uint32_t sessionId = static_cast<uint32_t>(hasher(spi));
 
         // 检测冲突并处理
-        while (sessionIDToIKESPI.find(sessionId) != sessionIDToIKESPI.end() || sessionIDToIPSecSPI.find(sessionId) != sessionIDToIPSecSPI.end())
+        while (sessionID_.find(sessionId) != sessionID_.end())
         {
             sessionId++;
         }
-        sessionIDToIKESPI[sessionId] = spi;
+        sessionID_.insert(sessionId);
         // 返回一个无冲突的会话ID
         return sessionId;
     }
@@ -93,11 +111,11 @@ public:
         uint32_t sessionId = hasher(spi);
 
         // 检测冲突并处理
-        while (sessionIDToIKESPI.find(sessionId) != sessionIDToIKESPI.end() || sessionIDToIPSecSPI.find(sessionId) != sessionIDToIPSecSPI.end())
+        while (sessionID_.find(sessionId) != sessionID_.end())
         {
             sessionId++;
         }
-        sessionIDToIPSecSPI[sessionId] = spi;
+        sessionID_.insert(sessionId);
         // 返回一个无冲突的会话ID
         return sessionId;
     }
@@ -105,7 +123,7 @@ public:
     SAManager();
 
     // 注册IPSecSA
-    bool registerIPSecSA(uint32_t sourceip, uint32_t desip, uint32_t spi, bool is_inbound);
+    bool registerIPSecSA(uint32_t sourceip, uint32_t desip, uint32_t spi, bool is_inbound, bool is_otpalg);
 
     // 获取IPSecSA密钥，通过request读取
     std::string getIPSecKey(uint32_t spi, uint32_t seq, uint16_t request_len);
@@ -130,10 +148,8 @@ private:
     std::unordered_map<IKE_SPI, IKE_SAData, IKE_SPI_Hash> IKE_SACache_;
     // 定义全局IPSec SA数量
     int IPSecSA_number;
-    // 定义会话id到IKE_SPI的映射
-    std::unordered_map<uint32_t, IKE_SPI> sessionIDToIKESPI;
-    // 定义会话id到IPSec_SPI的映射
-    std::unordered_map<uint32_t, uint32_t> sessionIDToIPSecSPI;
+    // 定义已存在的会话id集合
+    std::unordered_set<uint32_t> sessionID_;
 };
 
 #endif // SAMANAGEMENT_HPP

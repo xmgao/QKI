@@ -55,17 +55,18 @@ public:
     void Extract(byte &key_material);
     byte Expend(uint64_t amr);
     byte SingleRound(byte &key_material);
+    byte SingleRound(byte &key_material, uint64_t request_keylen);
 
 private:
-    std::chrono::milliseconds Period;   // Sampling period
-    uint64_t Rate;     // Target rate (byte per second)
-    uint64_t MR;       // Multiplier ratio
-    uint64_t Round;    // Current round
-    byte mdk;          // Key material
-    byte ctx;          // Context
-    FloatType Epsilon; // Security threshold
-    FloatType Delta;   // Security level
-    std::string Name;  // Name
+    std::chrono::milliseconds Period; // Sampling period
+    uint64_t Rate;                    // Target rate (byte per second)
+    uint64_t MR;                      // Multiplier ratio
+    uint64_t Round;                   // Current round
+    byte mdk;                         // Key material
+    byte ctx;                         // Context
+    FloatType Epsilon;                // Security threshold
+    FloatType Delta;                  // Security level
+    std::string Name;                 // Name
 };
 
 int GetblockSize(HashAlg alg);

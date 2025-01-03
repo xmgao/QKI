@@ -10,8 +10,6 @@ extern SAManager globalSAManager;
 extern uint32_t LOCAL_QKI_IPADDRESS;
 extern int KM_LISTEN_PORT;
 
-extern int USE_QKDF;
-
 SAManager::SAManager()
     : IPSecSA_number(0) {}
 
@@ -159,7 +157,7 @@ bool addKey(IPSec_SAData &sadata)
     const int max_retries = 5; // 设置最大重试次数
     int retries = 0;
     int request_len = 0;
-    if (USE_QKDF)
+    if (sadata.use_qkdf_)
     {
         request_len = sadata.qkdf_.BlockSize; // 每次请求一个mdk
     }
@@ -211,7 +209,7 @@ bool addKey(IPSec_SAData &sadata)
             KeyRequestPacket pkt4(std::move(pkt3));
             getkeyvalue.resize(request_len);
             std::memcpy(&getkeyvalue[0], pkt4.getKeyBufferPtr(), request_len);
-            if (USE_QKDF)
+            if (sadata.use_qkdf_)
             {
                 sadata.keybuffer.insert(sadata.keybuffer.end(), getkeyvalue.begin(), getkeyvalue.end()); // 存入原始密钥
                 // 获取派生材料
@@ -256,13 +254,97 @@ bool addKey(IPSec_SAData &sadata)
     return false;
 }
 
+// SA通过会话向KM索取OTP密钥
+bool addOTPKey(IPSec_SAData &sadata)
+{
+    const int max_retries = 5; // 设置最大重试次数
+    int retries = 0;
+    int request_len = sadata.qkdf_.BlockSize; // 每次请求一个mdk
+
+    sadata.request_id += 1; // 每次请求的id递增
+    // 重试5次
+    while (retries < max_retries)
+    {
+        // 构造请求密钥包
+        KeyRequestPacket pkt2;
+        pkt2.constructkeyrequestpacket(sadata.session_id_, sadata.request_id, request_len);
+        if (send(sadata.KM_fd_, pkt2.getBufferPtr(), pkt2.getBufferSize(), 0) == -1)
+        {
+            perror("send Error");
+            close(sadata.KM_fd_);
+            return false;
+        }
+        // 处理密钥返回
+        PacketBase pkt3;
+        // 读取packet header
+        ssize_t bytes_read = read(sadata.KM_fd_, pkt3.getBufferPtr(), BASE_HEADER_SIZE);
+        if (bytes_read <= 0)
+        {
+            perror("read Error");
+            close(sadata.KM_fd_);
+            return false;
+        }
+
+        uint16_t value1, length;
+        std::memcpy(&value1, pkt3.getBufferPtr(), sizeof(uint16_t));
+        std::memcpy(&length, pkt3.getBufferPtr() + sizeof(uint16_t), sizeof(uint16_t));
+
+        // 读取payload
+        bytes_read = read(sadata.KM_fd_, pkt3.getBufferPtr() + BASE_HEADER_SIZE, length);
+        if (bytes_read != length)
+        {
+            perror("Incomplete payload read");
+            close(sadata.KM_fd_);
+            return false;
+        }
+        pkt3.setBufferSize(BASE_HEADER_SIZE + length);
+        std::string getkeyvalue;
+        if (value1 == static_cast<uint16_t>(PacketType::KEYRETURN))
+        {
+            // 带参构造KeyRequestPacket,成功返回mdk字节密钥，插入到buffer末尾
+            KeyRequestPacket pkt4(std::move(pkt3));
+            getkeyvalue.resize(request_len);
+            std::memcpy(&getkeyvalue[0], pkt4.getKeyBufferPtr(), request_len);
+            sadata.keybuffer.insert(sadata.keybuffer.end(), getkeyvalue.begin(), getkeyvalue.end()); // 存入原始密钥
+
+            // 获取派生材料
+            std::vector<uint8_t> input_key_buf(getkeyvalue.begin(), getkeyvalue.begin() + request_len);
+            byte output = sadata.qkdf_.SingleRound(input_key_buf, OTP_KEY_UNIT * NUM_BLOCK); // 进行派生
+            for (uint32_t i = 0; i < NUM_BLOCK; ++i)
+            {
+                std::array<uint8_t, OTP_KEY_UNIT> block;
+                // 将每个块的数据复制到数组中
+                std::copy(output.begin() + i * OTP_KEY_UNIT, output.begin() + (i + 1) * OTP_KEY_UNIT, block.begin());
+                // 将块插入到unordered_map中
+                sadata.otpdata_.otpkey_map[sadata.otpdata_.seq_++] = block;
+            }
+            return true;
+        }
+        if (sadata.is_inbound_ && retries < max_retries)
+        {
+            // 如果是被动端返回密钥失败，可以进行重新尝试
+            usleep(2000);
+            retries++;
+            std::cerr << "getIPSecSAkey Error, retrying..." << std::endl;
+            continue;
+        }
+        else
+        {
+            break;
+        }
+    }
+    // 返回密钥失败，返回错误消息
+    std::cerr << "getIPSecSAOTPkey Error" << std::endl;
+    return false;
+}
+
 bool addKey(IKE_SAData &sadata)
 {
     int request_len = 512;
 
     const int max_retries = 5; // 设置最大重试次数
     int retries = 0;
-     sadata.request_id += 1; // 每次请求的id递增
+    sadata.request_id += 1; // 每次请求的id递增
     // 重试5次
     while (retries < max_retries)
     {
@@ -346,7 +428,7 @@ void closesession(IKE_SAData &sadata)
     close(sadata.KM_fd_);
 }
 
-bool SAManager::registerIPSecSA(uint32_t sourceip, uint32_t desip, uint32_t spi, bool is_inbound)
+bool SAManager::registerIPSecSA(uint32_t sourceip, uint32_t desip, uint32_t spi, bool is_inbound, bool is_otpalg)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     // 检查SA是否已存在
@@ -362,11 +444,18 @@ bool SAManager::registerIPSecSA(uint32_t sourceip, uint32_t desip, uint32_t spi,
     newSAData.desip_ = desip;
     newSAData.spi_ = spi;
     newSAData.is_inbound_ = is_inbound;
-    if (USE_QKDF)
+    newSAData.is_otpalg_ = is_otpalg;
+    if (is_otpalg)
     {
+        newSAData.use_qkdf_ = true;
         newSAData.qkdf_.SetName(std::to_string(spi));
         newSAData.qkdf_.Initialized();
     }
+    else
+    {
+        newSAData.use_qkdf_ = false; // 默认不开启
+    }
+
     newSAData.session_id_ = globalSAManager.mapIPSecSpiToSessionId(spi); // 调用成员函数
     if (!connect_KM(newSAData))
     {
@@ -393,48 +482,54 @@ std::string SAManager::getIPSecKey(uint32_t spi, uint32_t seq, uint16_t request_
     auto it = IPSec_SACache_.find(spi);
     if (it != IPSec_SACache_.end())
     {
-        // 返回找到的密钥
-        int useful_size = 0;
-
-        if (USE_QKDF)
+        if (it->second.is_otpalg_)
         {
-            useful_size = it->second.keyderive.size();
-        }
-        else
-        {
-            useful_size = it->second.keybuffer.size() - it->second.index_;
-        }
-
-        while (useful_size < request_len)
-        {
-            // 补充密钥
-            if (!addKey(it->second))
+            // 如果找到密钥缓存map
+            auto it_key = it->second.otpdata_.otpkey_map.find(seq);
+            if (it_key != it->second.otpdata_.otpkey_map.end())
             {
-                // 如果是加密方，补充密钥失败说明KM密钥不足，不尝试重新获取密钥
-                // 如果是解密方补充密钥失败，有可能是密钥不足，也有可能是密钥未同步过去，需要循环多次尝试重新请求
-                // 错误处理
-                std::cerr << "add ipsecsa key failed." << std::endl;
-                return "";
-            }
-            if (USE_QKDF)
-            {
-                useful_size = it->second.keyderive.size();
+                if (request_len > OTP_KEY_UNIT)
+                {
+                    std::cerr << "request_len exceeds MAX block size" << std::endl;
+                    return "";
+                }
+                // 将找到的区间初始化成 std::string
+                std::string returnkeyvalue(it_key->second.begin(), it_key->second.begin() + request_len);
+                it->second.otpdata_.otpkey_map.erase(it_key); // 用后删除
+                return returnkeyvalue;
             }
             else
             {
-                useful_size = it->second.keybuffer.size() - it->second.index_;
+                // 补充密钥
+                if (!addOTPKey(it->second))
+                {
+                    std::cerr << "add ipsecsa OTPkey failed." << std::endl;
+                    //直接返回空，让上层重试
+                    return "";
+                }
             }
-        }
-        if (USE_QKDF)
-        {
-            std::string returnkeyvalue(it->second.keyderive.begin(), it->second.keyderive.begin() + request_len);
-            it->second.keyderive.erase(it->second.keyderive.begin(), it->second.keyderive.begin() + request_len); // 用后删除
-            return returnkeyvalue;
         }
         else
         {
-            std::string returnkeyvalue(it->second.keybuffer.begin() + it->second.index_, it->second.keybuffer.begin() + it->second.index_ + request_len);
-            it->second.index_ += request_len;
+            std::vector<uint8_t> &bufferptr = (it->second.use_qkdf_) ? it->second.keyderive : it->second.keybuffer;
+            int useful_size = bufferptr.size();
+
+            while (useful_size < request_len)
+            {
+                // 补充密钥
+                if (!addKey(it->second))
+                {
+                    // 如果是加密方，补充密钥失败说明KM密钥不足，不尝试重新获取密钥
+                    // 如果是解密方补充密钥失败，有可能是密钥不足，也有可能是密钥未同步过去，需要循环多次尝试重新请求
+                    // 错误处理
+                    std::cerr << "add ipsecsa key failed." << std::endl;
+                    return "";
+                }
+                useful_size = bufferptr.size();
+            }
+
+            std::string returnkeyvalue(bufferptr.begin(), bufferptr.begin() + request_len);
+            it->second.keyderive.erase(bufferptr.begin(), bufferptr.begin() + request_len); // 用后删除
             return returnkeyvalue;
         }
     }

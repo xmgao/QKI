@@ -37,11 +37,12 @@ void handleRegisterIPSECSAPacket(int fd, PacketBase &pkt1)
                   << " source_ip: " << uint32ToIpString(ntohl(hdr->registeripsecsa_source))
                   << " dest_ip: " << uint32ToIpString(ntohl(hdr->registeripsecsa_destination))
                   << " spi: " << std::hex << std::setw(8) << std::setfill('0') << ntohl(hdr->registeripsecsa_spi) << std::dec // 恢复十进制格式
-                  << " is_inbound: " << hdr->is_inbound
+                  << " is_inbound: " <<  static_cast<int>(hdr->is_inbound)
+                  << " is_otpalg: " << static_cast<int>(hdr->is_otpalg)
                   << std::endl;
     }
     // 暂时不作回复
-    globalSAManager.registerIPSecSA(ntohl(hdr->registeripsecsa_source), ntohl(hdr->registeripsecsa_destination), hdr->registeripsecsa_spi, hdr->is_inbound);
+    globalSAManager.registerIPSecSA(ntohl(hdr->registeripsecsa_source), ntohl(hdr->registeripsecsa_destination), hdr->registeripsecsa_spi, hdr->is_inbound, hdr->is_otpalg);
 
     if (DEBUG_LEVEL <= 0)
     {
@@ -98,7 +99,7 @@ void handleIPSECSAKeyRequestPacket(int fd, PacketBase &pkt1)
     IPSECSAKeyRequestPacket pkt3;
     pkt3.ConstructIPSECSAkeyReturnPacket(hdr->keyreq_spi, hdr->keyreq_seq, hdr->keyreq_reqlen, getkeyvalue);
     send(fd, pkt3.getBufferPtr(), pkt3.getBufferSize(), 0);
-     if (DEBUG_LEVEL <= 0)
+    if (DEBUG_LEVEL <= 0)
     {
         // 获取结束时间点
         auto end = std::chrono::high_resolution_clock::now();
@@ -129,12 +130,13 @@ void handleDestroyIPSECSAPacket(int fd, PacketBase &pkt1)
                   << " source_ip: " << uint32ToIpString(ntohl(hdr->registeripsecsa_source))
                   << " dest_ip: " << uint32ToIpString(ntohl(hdr->registeripsecsa_destination))
                   << " spi: " << std::hex << std::setw(8) << std::setfill('0') << ntohl(hdr->registeripsecsa_spi) << std::dec // 恢复十进制格式
-                  << " is_inbound: " << hdr->is_inbound
+                  << " is_inbound: " << static_cast<int>(hdr->is_inbound)
+                  << " is_otpalg: " << static_cast<int>(hdr->is_otpalg)
                   << std::endl;
     }
     globalSAManager.destoryIPSecSA(hdr->registeripsecsa_spi);
     close(fd);
-     if (DEBUG_LEVEL <= 0)
+    if (DEBUG_LEVEL <= 0)
     {
         // 获取结束时间点
         auto end = std::chrono::high_resolution_clock::now();
@@ -169,7 +171,7 @@ void handleRegisterIKESAPacket(int fd, PacketBase &pkt1)
                   << std::endl;
     }
     globalSAManager.registerIKESA(ntohl(hdr->registerikesa_source), ntohl(hdr->registerikesa_destination), hdr->registerikesa_spiI, hdr->registerikesa_spiR);
-     if (DEBUG_LEVEL <= 0)
+    if (DEBUG_LEVEL <= 0)
     {
         // 获取结束时间点
         auto end = std::chrono::high_resolution_clock::now();
@@ -222,7 +224,7 @@ void handleIKESAKeyRequestPacket(int fd, PacketBase &pkt1)
     IKESAKeyRequestPacket pkt3;
     pkt3.ConstructIKESAkeyReturnPacket(hdr->keyreq_spiI, hdr->keyreq_spiR, hdr->keyreq_seq, hdr->keyreq_reqlen, getkeyvalue);
     send(fd, pkt3.getBufferPtr(), pkt3.getBufferSize(), 0);
-     if (DEBUG_LEVEL <= 0)
+    if (DEBUG_LEVEL <= 0)
     {
         // 获取结束时间点
         auto end = std::chrono::high_resolution_clock::now();
@@ -256,7 +258,7 @@ void handleDestroyIKESAPacket(int fd, PacketBase &pkt1)
     }
     globalSAManager.destoryIKESA(hdr->registerikesa_spiI, hdr->registerikesa_spiR);
     close(fd);
-     if (DEBUG_LEVEL <= 0)
+    if (DEBUG_LEVEL <= 0)
     {
         // 获取结束时间点
         auto end = std::chrono::high_resolution_clock::now();

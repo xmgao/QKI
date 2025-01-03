@@ -32,10 +32,19 @@ enum class PacketType : uint16_t
     DESTORYIPSECSA
 };
 
+struct __attribute__((packed)) basepktheader_struct {
+    uint16_t packet_type;
+    uint16_t packet_length;
+};
+
+using basepktheader = struct basepktheader_struct;
+
+
 // 假设 PacketBase 类已经定义并包含 buffer_ 成员
 class PacketBase
 {
 protected:
+    basepktheader*  header_;
     uint8_t *buffer_;
     size_t buffer_size_;
 

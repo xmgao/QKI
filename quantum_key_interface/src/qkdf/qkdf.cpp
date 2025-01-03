@@ -247,6 +247,27 @@ byte QKDF::SingleRound(byte &key_material)
     return expended;
 }
 
+byte QKDF::SingleRound(byte &key_material, uint64_t request_keylen)
+{
+
+    this->Round += 1;
+
+    // Step 1: Extract
+    Extract(key_material);
+
+    uint64_t actual_mr =   (request_keylen + this->BlockSize - 1) / this->BlockSize; //向上取整
+
+    // Step 3: Expend
+    byte expended = Expend(actual_mr);
+
+    // Step 4: Truncate
+    if (request_keylen < (uint64_t)expended.size())
+    {
+        expended.resize(request_keylen);
+    }
+    return expended;
+}
+
 void QKDF::Initialized()
 {
     std::ifstream file("config.txt");

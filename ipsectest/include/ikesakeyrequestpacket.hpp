@@ -3,7 +3,19 @@
 
 #include "packetbase.hpp"
 
-#define IKESAKEYREQUEST_HEADER_SIZE 22
+
+struct __attribute__((packed)) ikesakeyrequesthdr_struct
+{
+    uint64_t keyreq_spiI;
+    uint64_t keyreq_spiR;
+    uint32_t keyreq_seq; // sequence number
+    uint16_t keyreq_reqlen;
+};
+
+using ikesakeyrequesthdr = struct ikesakeyrequesthdr_struct;
+
+constexpr size_t IKESAKEYREQUESTHDR_SIZE = sizeof(ikesakeyrequesthdr);
+
 /**
  * @brief structure:
  *        |<-4 bytes->|<---8 bytes--->|<---8 bytes--->|<-4 bytes->|<-2 bytes->|<-----------32 bytes---------->|
@@ -16,10 +28,7 @@
 class IKESAKeyRequestPacket : public PacketBase
 {
 private:
-    uint64_t *keyreq_spiI_ptr_;
-    uint64_t *keyreq_spiR_ptr_;
-    uint32_t *keyreq_seq_ptr_;
-    uint16_t *keyreq_reqlen_ptr_;
+    ikesakeyrequesthdr *keyreq_hdrptr_;
     uint8_t *keyreq_payloadptr_;
 
 public:
@@ -29,11 +38,8 @@ public:
     IKESAKeyRequestPacket(const IKESAKeyRequestPacket &other);
     IKESAKeyRequestPacket(IKESAKeyRequestPacket &&other) noexcept;
 
+    ikesakeyrequesthdr *getIKESAKeyRequestHdrPtr();
     uint8_t *getKeyBufferPtr();
-    uint64_t *getspiIPtr();
-    uint64_t *getspiRPtr();
-    uint32_t *getseqPtr();
-    uint16_t *getreqlenPtr();
 
     void ConstructIKESAkeyRequestPacket(uint64_t spi_i, uint64_t spi_r, uint32_t seq, uint16_t request_len);
     void ConstructIKESAkeyReturnPacket(uint64_t spi_i, uint64_t spi_r, uint32_t seq, uint16_t request_len, const std::string &getkeyvalue);
