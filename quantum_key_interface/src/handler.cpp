@@ -31,7 +31,7 @@ void handleRegisterIPSECSAPacket(int fd, PacketBase &pkt1)
     RegisterIPSECSAPacket pkt2(std::move(pkt1));
     registeripsecsahdr *hdr = pkt2.getRegisterIPSECSAPacketHeader();
 
-    if (DEBUG_LEVEL <= 1)
+    if (DEBUG_LEVEL <= 2)
     {
         std::cout << "Received RegisterIPSECSA packet: "
                   << " source_ip: " << uint32ToIpString(ntohl(hdr->registeripsecsa_source))
@@ -70,7 +70,7 @@ void handleIPSECSAKeyRequestPacket(int fd, PacketBase &pkt1)
     IPSECSAKeyRequestPacket pkt2(std::move(pkt1));
     ipsecsakeyrequesthdr *hdr = pkt2.getKeyRequestHeaderPtr();
 
-    if (DEBUG_LEVEL <= 1)
+    if (DEBUG_LEVEL <= 2)
     {
         std::cout << "Received IPSECSAKEYREQUEST packet: "
                   << " spi: " << std::hex << std::setw(8) << std::setfill('0') << ntohl(hdr->keyreq_spi) << std::dec // 恢复十进制格式
@@ -124,7 +124,7 @@ void handleDestroyIPSECSAPacket(int fd, PacketBase &pkt1)
     RegisterIPSECSAPacket pkt2(std::move(pkt1));
     registeripsecsahdr *hdr = pkt2.getRegisterIPSECSAPacketHeader();
 
-    if (DEBUG_LEVEL <= 1)
+    if (DEBUG_LEVEL <= 2)
     {
         std::cout << "Received DestoryIPSECSA packet: "
                   << " source_ip: " << uint32ToIpString(ntohl(hdr->registeripsecsa_source))
@@ -161,7 +161,7 @@ void handleRegisterIKESAPacket(int fd, PacketBase &pkt1)
     RegisterIKESAPacket pkt2(std::move(pkt1));
     registerikesahdr *hdr = pkt2.getRegisterIKESAPacketHeaderPtr();
 
-    if (DEBUG_LEVEL <= 1)
+    if (DEBUG_LEVEL <= 2)
     {
         std::cout << "Received RegisterIKESA packet: "
                   << " source_ip: " << uint32ToIpString(ntohl(hdr->registerikesa_source))
@@ -195,7 +195,7 @@ void handleIKESAKeyRequestPacket(int fd, PacketBase &pkt1)
     // 带参构造KeyRequestPacket
     IKESAKeyRequestPacket pkt2(std::move(pkt1));
     ikesakeyrequesthdr *hdr = pkt2.getIKESAKeyRequestHdrPtr();
-    if (DEBUG_LEVEL <= 1)
+    if (DEBUG_LEVEL <= 2)
     {
         std::cout << "Received IKESAKEYREQUEST packet: "
                   << " spiI: " << std::hex << std::setw(16) << be64toh(hdr->keyreq_spiI) << std::dec // 恢复十进制格式
@@ -247,7 +247,7 @@ void handleDestroyIKESAPacket(int fd, PacketBase &pkt1)
     // 带参构造DestoryPacket
     RegisterIKESAPacket pkt2(std::move(pkt1));
     registerikesahdr *hdr = pkt2.getRegisterIKESAPacketHeaderPtr();
-    if (DEBUG_LEVEL <= 1)
+    if (DEBUG_LEVEL <= 2)
     {
         std::cout << "Received DestoryIKESA packet: "
                   << " source_ip: " << uint32ToIpString(ntohl(hdr->registerikesa_source))

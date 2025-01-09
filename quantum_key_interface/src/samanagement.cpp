@@ -305,8 +305,6 @@ bool addOTPKey(IPSec_SAData &sadata)
             KeyRequestPacket pkt4(std::move(pkt3));
             getkeyvalue.resize(request_len);
             std::memcpy(&getkeyvalue[0], pkt4.getKeyBufferPtr(), request_len);
-            sadata.keybuffer.insert(sadata.keybuffer.end(), getkeyvalue.begin(), getkeyvalue.end()); // 存入原始密钥
-
             // 获取派生材料
             std::vector<uint8_t> input_key_buf(getkeyvalue.begin(), getkeyvalue.begin() + request_len);
             byte output = sadata.qkdf_.SingleRound(input_key_buf, OTP_KEY_UNIT * NUM_BLOCK); // 进行派生
@@ -484,30 +482,35 @@ std::string SAManager::getIPSecKey(uint32_t spi, uint32_t seq, uint16_t request_
     {
         if (it->second.is_otpalg_)
         {
-            // 如果找到密钥缓存map
-            auto it_key = it->second.otpdata_.otpkey_map.find(seq);
-            if (it_key != it->second.otpdata_.otpkey_map.end())
+            // 查找密钥缓存map
+            auto &otpkey_map = it->second.otpdata_.otpkey_map;
+            auto it_key = otpkey_map.find(seq);
+
+            // 补充密钥，直到找到为止
+            while (it_key == otpkey_map.end())
             {
-                if (request_len > OTP_KEY_UNIT)
-                {
-                    std::cerr << "request_len exceeds MAX block size" << std::endl;
-                    return "";
-                }
-                // 将找到的区间初始化成 std::string
-                std::string returnkeyvalue(it_key->second.begin(), it_key->second.begin() + request_len);
-                it->second.otpdata_.otpkey_map.erase(it_key); // 用后删除
-                return returnkeyvalue;
-            }
-            else
-            {
-                // 补充密钥
                 if (!addOTPKey(it->second))
                 {
-                    std::cerr << "add ipsecsa OTPkey failed." << std::endl;
-                    //直接返回空，让上层重试
-                    return "";
+                    std::cerr << "Failed to add IPsecSA OTP key." << std::endl;
+                    return ""; // 直接返回空字符串，让上层重试
                 }
+                it_key = otpkey_map.find(seq);
             }
+
+            // 检查请求长度是否超出允许的最大块大小
+            if (request_len > OTP_KEY_UNIT)
+            {
+                std::cerr << "Request length exceeds the maximum block size." << std::endl;
+                return ""; // 返回空字符串，表示错误
+            }
+
+            // 将找到的密钥初始化为 std::string，并返回
+            std::string return_key_value(it_key->second.begin(), it_key->second.begin() + request_len);
+
+            // 使用后从map中删除密钥
+            otpkey_map.erase(it_key);
+
+            return return_key_value;
         }
         else
         {
@@ -529,7 +532,7 @@ std::string SAManager::getIPSecKey(uint32_t spi, uint32_t seq, uint16_t request_
             }
 
             std::string returnkeyvalue(bufferptr.begin(), bufferptr.begin() + request_len);
-            it->second.keyderive.erase(bufferptr.begin(), bufferptr.begin() + request_len); // 用后删除
+            bufferptr.erase(bufferptr.begin(), bufferptr.begin() + request_len); // 用后删除
             return returnkeyvalue;
         }
     }

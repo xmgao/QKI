@@ -97,7 +97,10 @@ void Server::handleMessage(int fd)
         uint16_t typevalue;
         std::memcpy(&typevalue, pkt1.getBufferPtr(), sizeof(uint16_t));
         // 解析消息类型
-        std::cout << "Server Received message! " << std::endl;
+        if (DEBUG_LEVEL <= 3)
+        {
+            std::cout << "Server Received message! " << std::endl;
+        }
         PacketType type = parsePacketType(typevalue);
         // 获取并调用相应的回调函数
         MessageHandler handler = global_registry.getHandler(type);

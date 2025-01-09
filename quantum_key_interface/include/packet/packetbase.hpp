@@ -7,7 +7,7 @@
 #include <memory>
 
 // 最大的数据长度
-#define MAX_BUFFER_SIZE 1024
+#define MAX_BUFFER_SIZE 2048
 #define BASE_HEADER_SIZE 4
 
 enum class PacketType : uint16_t
