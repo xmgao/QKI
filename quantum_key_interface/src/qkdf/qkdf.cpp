@@ -1,6 +1,7 @@
 #include "qkdf/qkdf.hpp"
 #include "debuglevel.hpp"
-
+#include <cstring> // for std::memcpy
+#include <sstream>  // for std::stringstream
 const int CounterPayloadSize = 8;
 
 QKDF::QKDF()
@@ -73,7 +74,7 @@ uint64_t QKDF::SecureMR(int key_len)
     }
     else
     {
-        smr = static_cast<uint64_t>(tmp_b.convert_to<double>());
+        smr = static_cast<uint64_t>(static_cast<double>(tmp_b));
     }
     return smr;
 }
@@ -84,7 +85,7 @@ double QKDF::Secure()
     FloatType p2 = p1 * this->Epsilon;
     FloatType s = p1 * p2;
     s += this->Delta;
-    double fs = s.convert_to<double>();
+    double fs = static_cast<double>(s);
     return fs;
 }
 
@@ -268,8 +269,39 @@ byte QKDF::SingleRound(byte &key_material, uint64_t request_keylen)
     return expended;
 }
 
+std::string base64_decode(const std::string& encoded) {
+    // 首先移除所有的填充字符 '='
+    std::string encoded_without_padding = encoded;
+    auto erase_begin = std::remove(encoded_without_padding.begin(), encoded_without_padding.end(), '=');
+    encoded_without_padding.erase(erase_begin, encoded_without_padding.end());
+
+    // 计算需要解码的长度以及分配缓冲区
+    size_t padding_needed = (4 - encoded_without_padding.size() % 4) % 4;
+    std::vector<unsigned char> decoded((encoded.size() + 3) / 4 * 3);
+
+    // 由于 EVP_DecodeBlock 需要输入长度为4的倍数，因此添加相应的填充
+    encoded_without_padding.append(padding_needed, '=');
+    
+    int decoded_length = EVP_DecodeBlock(decoded.data(),
+                                         reinterpret_cast<const unsigned char*>(encoded_without_padding.c_str()), 
+                                         encoded_without_padding.size());
+
+    if (decoded_length < 0) {
+        throw std::runtime_error("Base64 Decoding failed");
+    }
+
+    // 修正解码后的长度以去除多余的字节（处理填充值）
+    while (decoded_length > 0 && encoded_without_padding[encoded_without_padding.size() - 1] == '=') {
+        decoded_length--;
+        encoded_without_padding.pop_back();
+    }
+
+    return std::string(decoded.begin(), decoded.begin() + decoded_length);
+}
+
 void QKDF::Initialized()
 {
+    // 打开配置文件
     std::ifstream file("config.txt");
     if (!file.is_open())
     {
@@ -278,8 +310,10 @@ void QKDF::Initialized()
     }
     byte ctx;
     std::string name, value;
+    // 逐行读取配置文件
     while (std::getline(file, name))
     {
+        // 读取周期
         if (name == "period(ms):")
         {
             std::getline(file, value);
@@ -288,6 +322,7 @@ void QKDF::Initialized()
             ss >> period_count;
             this->Period = std::chrono::milliseconds(period_count);
         }
+        // 读取哈希算法
         else if (name == "hash algorithm:")
         {
             std::getline(file, value);
@@ -304,35 +339,37 @@ void QKDF::Initialized()
                 this->hashAlg = HashAlg::AlgSHA512;
             }
         }
+        // 读取速率
         else if (name == "rate(byte per second):")
         {
             std::getline(file, value);
             std::istringstream ss(value);
             ss >> this->Rate;
         }
+        // 读取epsilon
         else if (name == "epsilon:")
         {
             std::getline(file, value);
             this->Epsilon = (FloatType)std::stod(value);
         }
+        // 读取delta
         else if (name == "delta:")
         {
             std::getline(file, value);
             this->Delta = (FloatType)std::stod(value);
         }
+        // 读取context
         else if (name == "context:")
         {
             std::getline(file, value);
-            std::string decoded_base64;
-            using base64_iterator = boost::archive::iterators::transform_width<
-                boost::archive::iterators::binary_from_base64<std::string::const_iterator>, 8, 6>;
-            std::copy(base64_iterator(value.begin()), base64_iterator(value.end()), std::back_inserter(decoded_base64));
+            std::string decoded_base64 = base64_decode(value);
             ctx.assign(decoded_base64.begin(), decoded_base64.end());
         }
     }
 
     byte nil;
     nil.resize(0);
+    // 重置QKDF
     Reset(nil, ctx);
 
     file.close();

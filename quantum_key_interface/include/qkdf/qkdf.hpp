@@ -4,8 +4,8 @@
 #include <vector>
 #include <chrono>
 #include <string>
-#include <boost/multiprecision/cpp_dec_float.hpp>
-
+#include <algorithm>
+#include <stdexcept>
 #include <iostream>
 #include <stdio.h>
 #include <chrono>
@@ -20,14 +20,10 @@
 #include <mutex>
 #include <thread>
 
-#include <boost/archive/iterators/binary_from_base64.hpp>
-#include <boost/archive/iterators/transform_width.hpp>
-#include <boost/multiprecision/number.hpp>
 
 using byte = std::vector<uint8_t>;
 
-namespace mp = boost::multiprecision;
-using FloatType = mp::number<mp::cpp_dec_float<100>>; // Adjust precision as needed
+using FloatType = long double; // Adjust precision as needed
 
 enum class HashAlg : int
 {
