@@ -2,14 +2,8 @@
 #define HANDLER_HPP
 
 #include "packet/packetbase.hpp"
-#include <sys/epoll.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <string.h>
-#include <map>
+#include <stdlib.h> // 包含exit函数
+#include <map>      // 包含std::map
 
 // 函数指针类型定义（每个处理函数接受文件描述符并处理消息）
 typedef void (*MessageHandler)(int, PacketBase &);

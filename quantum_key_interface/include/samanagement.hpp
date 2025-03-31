@@ -1,18 +1,15 @@
 #ifndef SAMANAGEMENT_HPP
 #define SAMANAGEMENT_HPP
 
-#include <iostream>
-#include <string>
-#include <mutex>
-#include <iomanip>
-#include <stdexcept>
+
+#include <mutex>    // std::mutex
+#include <iomanip>    // std::setw
 #include <unordered_map>
-#include <unordered_set>
-#include <cstdint>
-#include <vector>
-#include <queue>
+#include <unordered_set> 
+#include <cstdint> // std::uint64_t
+#include <vector> // std::vector
 #include <array>    // std::array
-#include "qkdf/qkdf.hpp"
+#include "qkdf/qkdf.hpp"    // 自定义的 QKDF 实现
 
 #define OTP_KEY_UNIT (1480 + 32)
 #define NUM_BLOCK 1024

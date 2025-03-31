@@ -2,6 +2,8 @@
 #include "debuglevel.hpp"
 #include <cstring> // for std::memcpy
 #include <sstream>  // for std::stringstream
+
+
 const int CounterPayloadSize = 8;
 
 QKDF::QKDF()

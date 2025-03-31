@@ -2,9 +2,6 @@
 #include "server.hpp"
 #include "samanagement.hpp"
 #include "handler.hpp"
-#include <thread>
-#include <cstdlib> // for std::atoi
-#include <stdlib.h>
 
 // È«¾ÖsessionManagerÊµÀý
 SAManager globalSAManager;

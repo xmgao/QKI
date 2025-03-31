@@ -1,6 +1,5 @@
 #include "packet/confirmmessagepacket.hpp"
-#include <iostream>
-#include <string>
+
 
 ConfirmMessagePacket::ConfirmMessagePacket()
     : error_type_ptr_(reinterpret_cast<uint32_t *>(buffer_ + BASE_HEADER_SIZE)) {}

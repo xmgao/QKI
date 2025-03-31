@@ -1,10 +1,10 @@
 #ifndef PACKET_BASE_HPP
 #define PACKET_BASE_HPP
 
-#include <iostream>
-#include <cstring>
-#include <cstdint>
-#include <memory>
+#include <iostream>     // for std::cout
+#include <cstring>  // for memcpy
+#include <cstdint>  // for uint16_t
+#include <memory> // for shared_ptr
 
 // 最大的数据长度
 #define MAX_BUFFER_SIZE 2048

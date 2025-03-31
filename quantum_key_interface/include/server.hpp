@@ -1,17 +1,14 @@
 #ifndef SERVER_HPP
 #define SERVER_HPP
 
-#include <sys/epoll.h>
-#include <netinet/in.h>
-#include <iostream>
-#include <string>
-#include <cstring>
-#include <unistd.h>
-#include <fcntl.h>
-#include <vector>
-#include <arpa/inet.h>
-#include <sys/socket.h>
+#include <sys/epoll.h> // for epoll_create1()
+#include <netinet/in.h>     // for sockaddr_in
+#include <string> // for std::string
+#include <cstring>  // for memset()
 #include <unistd.h> // for close()
+#include <vector>   // for std::vector<>
+#include <arpa/inet.h>  // for inet_ntop()
+#include <sys/socket.h>     // for socket()
 
 
 class Server
